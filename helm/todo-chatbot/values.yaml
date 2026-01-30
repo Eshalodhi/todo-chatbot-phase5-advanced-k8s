@@ -1,0 +1,146 @@
+# Default values for todo-chatbot Helm chart
+# This is a YAML-formatted file.
+
+# Namespace configuration
+namespace: todo-app
+
+# Frontend Configuration
+frontend:
+  image:
+    repository: todo-frontend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 3000
+    nodePort: 30080
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  probes:
+    liveness:
+      path: /
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+
+# Backend Configuration
+backend:
+  image:
+    repository: todo-backend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+
+# ConfigMap Data
+config:
+  apiHost: "0.0.0.0"
+  apiPort: "8000"
+  logLevel: "info"
+  environment: "production"
+  nextPublicApiUrl: "http://todo-backend:8000"
+
+# Phase V - Notification Service Configuration
+notification:
+  image:
+    repository: todo-notification
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Phase V - Recurring Task Service Configuration
+recurring:
+  image:
+    repository: todo-recurring
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Phase V - Dapr Configuration
+dapr:
+  enabled: false
+  kafka:
+    brokers: "redpanda:9092"
+
+# Secrets (provide values at install time via --set or separate values file)
+# Example: helm install todo-release ./helm/todo-chatbot --set secrets.databaseUrl=...
+secrets:
+  # Base64 encoded values - leave empty here, set at install time
+  databaseUrl: ""
+  cohereApiKey: ""
+  betterAuthSecret: ""

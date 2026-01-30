@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-config
+  labels:
+    app: todo-chatbot
+data:
+  # Server-side URL (for Next.js API routes inside container)
+  BACKEND_URL: "http://todo-backend:8000"
+
+  # Client-side URLs (for browser - needs port-forward)
+  NEXT_PUBLIC_API_URL: "http://localhost:8000"
+  NEXT_PUBLIC_BETTER_AUTH_URL: "http://localhost:8000/api/auth"
+
+  # Better Auth server-side
+  BETTER_AUTH_URL: "http://todo-backend:8000/api/auth"
+
+  # CORS - specific origins for local dev (credentials require explicit origins)
+  CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:30001,http://127.0.0.1:30001,http://127.0.0.1:50681"
+
+  # Frontend URL for OAuth redirects (must match Google Cloud Console)
+  FRONTEND_URL: "http://localhost:3000"
+
+  NODE_ENV: "production"

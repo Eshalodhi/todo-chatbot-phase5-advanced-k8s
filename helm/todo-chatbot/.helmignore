@@ -1,0 +1,30 @@
+# Patterns to ignore when building packages
+.DS_Store
+.git/
+.gitignore
+.bzr/
+.bzrignore
+.hg/
+.hgignore
+.svn/
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+
+# IDE directories
+.vscode/
+.idea/
+
+# CI files
+.travis.yml
+.circleci/
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+tests/
+test/

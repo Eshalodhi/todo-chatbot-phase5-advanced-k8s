@@ -1,0 +1,28 @@
+# Development values for todo-chatbot Helm chart
+# Use with: helm install todo-release ./helm/todo-chatbot -f helm/todo-chatbot/values-dev.yaml
+
+# Reduced replicas for development
+frontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+backend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Development configuration
+config:
+  logLevel: "debug"
+  environment: "development"

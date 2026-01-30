@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Reminder Events Schema",
+  "description": "Event schemas for reminder lifecycle events in Phase V",
+  "definitions": {
+    "eventEnvelope": {
+      "type": "object",
+      "required": ["event_id", "event_type", "timestamp", "version", "source", "user_id", "payload"],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for this event (for idempotency)"
+        },
+        "event_type": {
+          "type": "string",
+          "description": "Type of event"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when event occurred (UTC)"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$",
+          "description": "Schema version (semver format MAJOR.MINOR)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Service that produced this event"
+        },
+        "user_id": {
+          "type": "string",
+          "description": "User ID for isolation and routing"
+        },
+        "payload": {
+          "type": "object",
+          "description": "Event-specific data"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "title": "reminder.scheduled",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "reminder.scheduled" },
+            "payload": {
+              "type": "object",
+              "required": ["reminder_id", "task_id", "remind_at"],
+              "properties": {
+                "reminder_id": { "type": "integer" },
+                "task_id": { "type": "integer" },
+                "task_title": { "type": "string" },
+                "remind_at": { "type": "string", "format": "date-time" },
+                "task_due_date": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "660e8400-e29b-41d4-a716-446655440001",
+          "event_type": "reminder.scheduled",
+          "timestamp": "2026-01-28T12:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "reminder_id": 15,
+            "task_id": 42,
+            "task_title": "Complete quarterly report",
+            "remind_at": "2026-02-01T16:00:00.000Z",
+            "task_due_date": "2026-02-01T17:00:00.000Z"
+          }
+        }
+      ]
+    },
+    {
+      "title": "reminder.triggered",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "reminder.triggered" },
+            "payload": {
+              "type": "object",
+              "required": ["reminder_id", "task_id", "task_title"],
+              "properties": {
+                "reminder_id": { "type": "integer" },
+                "task_id": { "type": "integer" },
+                "task_title": { "type": "string" },
+                "due_at": { "type": ["string", "null"], "format": "date-time" },
+                "user_email": { "type": "string", "format": "email" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "660e8400-e29b-41d4-a716-446655440002",
+          "event_type": "reminder.triggered",
+          "timestamp": "2026-02-01T16:00:00.000Z",
+          "version": "1.0",
+          "source": "notification-service",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "reminder_id": 15,
+            "task_id": 42,
+            "task_title": "Complete quarterly report",
+            "due_at": "2026-02-01T17:00:00.000Z",
+            "user_email": "user@example.com"
+          }
+        }
+      ]
+    },
+    {
+      "title": "reminder.sent",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "reminder.sent" },
+            "payload": {
+              "type": "object",
+              "required": ["reminder_id", "channel", "sent_at"],
+              "properties": {
+                "reminder_id": { "type": "integer" },
+                "channel": { "type": "string", "enum": ["email", "push", "sms"] },
+                "sent_at": { "type": "string", "format": "date-time" },
+                "recipient": { "type": "string" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "660e8400-e29b-41d4-a716-446655440003",
+          "event_type": "reminder.sent",
+          "timestamp": "2026-02-01T16:00:05.000Z",
+          "version": "1.0",
+          "source": "notification-service",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "reminder_id": 15,
+            "channel": "email",
+            "sent_at": "2026-02-01T16:00:05.000Z",
+            "recipient": "user@example.com"
+          }
+        }
+      ]
+    },
+    {
+      "title": "reminder.cancelled",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "reminder.cancelled" },
+            "payload": {
+              "type": "object",
+              "required": ["reminder_id", "reason"],
+              "properties": {
+                "reminder_id": { "type": "integer" },
+                "task_id": { "type": "integer" },
+                "reason": { "type": "string", "enum": ["task_completed", "task_deleted", "user_cancelled", "system"] }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "660e8400-e29b-41d4-a716-446655440004",
+          "event_type": "reminder.cancelled",
+          "timestamp": "2026-01-30T10:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "reminder_id": 15,
+            "task_id": 42,
+            "reason": "task_completed"
+          }
+        }
+      ]
+    },
+    {
+      "title": "reminder.failed",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "reminder.failed" },
+            "payload": {
+              "type": "object",
+              "required": ["reminder_id", "error", "retry_count"],
+              "properties": {
+                "reminder_id": { "type": "integer" },
+                "error": { "type": "string" },
+                "retry_count": { "type": "integer" },
+                "will_retry": { "type": "boolean" },
+                "next_retry_at": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "660e8400-e29b-41d4-a716-446655440005",
+          "event_type": "reminder.failed",
+          "timestamp": "2026-02-01T16:00:10.000Z",
+          "version": "1.0",
+          "source": "notification-service",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "reminder_id": 15,
+            "error": "SMTP connection timeout",
+            "retry_count": 1,
+            "will_retry": true,
+            "next_retry_at": "2026-02-01T16:01:00.000Z"
+          }
+        }
+      ]
+    }
+  ]
+}

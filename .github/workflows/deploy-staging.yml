@@ -1,0 +1,50 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["Build and Push"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "v1.28.0"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "v3.13.0"
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install todo-chatbot ./helm/todo-chatbot \
+            --namespace todo-staging \
+            --create-namespace \
+            -f ./helm/todo-chatbot/values.yaml \
+            -f ./helm/todo-chatbot/values-dev.yaml \
+            --set backend.image.tag=${{ github.sha }} \
+            --set frontend.image.tag=${{ github.sha }} \
+            --set notification.image.tag=${{ github.sha }} \
+            --set recurring.image.tag=${{ github.sha }} \
+            --wait --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n todo-staging
+          kubectl rollout status deployment/backend -n todo-staging --timeout=120s

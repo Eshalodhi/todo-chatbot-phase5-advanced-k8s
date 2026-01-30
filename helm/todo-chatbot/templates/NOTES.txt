@@ -1,0 +1,52 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+==========================================================================
+                    TODO CHATBOT - PHASE IV DEPLOYMENT
+==========================================================================
+
+FRONTEND ACCESS:
+----------------
+{{- if eq .Values.frontend.service.type "NodePort" }}
+  Get the frontend URL by running:
+    minikube service {{ include "todo-chatbot.fullname" . }}-frontend -n {{ .Values.namespace }} --url
+
+  Or access directly at:
+    http://$(minikube ip):{{ .Values.frontend.service.nodePort }}
+{{- else }}
+  kubectl port-forward svc/{{ include "todo-chatbot.fullname" . }}-frontend {{ .Values.frontend.service.port }}:{{ .Values.frontend.service.port }} -n {{ .Values.namespace }}
+{{- end }}
+
+BACKEND ACCESS (Internal):
+--------------------------
+  The backend is accessible within the cluster at:
+    http://{{ include "todo-chatbot.fullname" . }}-backend:{{ .Values.backend.service.port }}
+
+VERIFY DEPLOYMENT:
+------------------
+  # Check pod status
+  kubectl get pods -n {{ .Values.namespace }}
+
+  # Check services
+  kubectl get svc -n {{ .Values.namespace }}
+
+  # View logs
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Values.namespace }}
+
+COMMON OPERATIONS:
+------------------
+  # Scale frontend
+  kubectl scale deployment {{ include "todo-chatbot.fullname" . }}-frontend --replicas=3 -n {{ .Values.namespace }}
+
+  # Upgrade release
+  helm upgrade {{ .Release.Name }} ./helm/todo-chatbot -n {{ .Values.namespace }}
+
+  # Rollback
+  helm rollback {{ .Release.Name }} -n {{ .Values.namespace }}
+
+  # Uninstall
+  helm uninstall {{ .Release.Name }} -n {{ .Values.namespace }}
+
+==========================================================================
+Happy deploying!

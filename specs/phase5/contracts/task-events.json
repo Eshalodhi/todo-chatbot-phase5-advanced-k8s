@@ -1,0 +1,245 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Task Events Schema",
+  "description": "Event schemas for task lifecycle events in Phase V",
+  "definitions": {
+    "eventEnvelope": {
+      "type": "object",
+      "required": ["event_id", "event_type", "timestamp", "version", "source", "user_id", "payload"],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for this event (for idempotency)"
+        },
+        "event_type": {
+          "type": "string",
+          "description": "Type of event"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when event occurred (UTC)"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$",
+          "description": "Schema version (semver format MAJOR.MINOR)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Service that produced this event"
+        },
+        "user_id": {
+          "type": "string",
+          "description": "User ID for isolation and routing"
+        },
+        "payload": {
+          "type": "object",
+          "description": "Event-specific data"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "title": "task.created",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "task.created" },
+            "payload": {
+              "type": "object",
+              "required": ["task_id", "title"],
+              "properties": {
+                "task_id": { "type": "integer" },
+                "title": { "type": "string", "maxLength": 200 },
+                "description": { "type": ["string", "null"], "maxLength": 1000 },
+                "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                "due_date": { "type": ["string", "null"], "format": "date-time" },
+                "tags": { "type": "array", "items": { "type": "string" } },
+                "recurrence_pattern": { "type": ["string", "null"], "enum": ["daily", "weekly", "monthly", null] }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "550e8400-e29b-41d4-a716-446655440001",
+          "event_type": "task.created",
+          "timestamp": "2026-01-28T12:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "task_id": 42,
+            "title": "Complete quarterly report",
+            "description": "Include all department metrics",
+            "priority": "high",
+            "due_date": "2026-02-01T17:00:00.000Z",
+            "tags": ["work", "reports"],
+            "recurrence_pattern": null
+          }
+        }
+      ]
+    },
+    {
+      "title": "task.updated",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "task.updated" },
+            "payload": {
+              "type": "object",
+              "required": ["task_id", "changed_fields"],
+              "properties": {
+                "task_id": { "type": "integer" },
+                "changed_fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "before": {},
+                      "after": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "550e8400-e29b-41d4-a716-446655440002",
+          "event_type": "task.updated",
+          "timestamp": "2026-01-28T13:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "task_id": 42,
+            "changed_fields": {
+              "priority": { "before": "medium", "after": "high" },
+              "due_date": { "before": null, "after": "2026-02-01T17:00:00.000Z" }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "task.completed",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "task.completed" },
+            "payload": {
+              "type": "object",
+              "required": ["task_id", "title", "completed_at", "had_recurrence"],
+              "properties": {
+                "task_id": { "type": "integer" },
+                "title": { "type": "string" },
+                "completed_at": { "type": "string", "format": "date-time" },
+                "had_recurrence": { "type": "boolean" },
+                "recurrence_pattern": { "type": ["string", "null"] },
+                "recurrence_end_date": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "550e8400-e29b-41d4-a716-446655440003",
+          "event_type": "task.completed",
+          "timestamp": "2026-01-28T14:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "task_id": 42,
+            "title": "Complete quarterly report",
+            "completed_at": "2026-01-28T14:00:00.000Z",
+            "had_recurrence": true,
+            "recurrence_pattern": "weekly",
+            "recurrence_end_date": "2026-06-30T00:00:00.000Z"
+          }
+        }
+      ]
+    },
+    {
+      "title": "task.deleted",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "task.deleted" },
+            "payload": {
+              "type": "object",
+              "required": ["task_id", "title"],
+              "properties": {
+                "task_id": { "type": "integer" },
+                "title": { "type": "string" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "550e8400-e29b-41d4-a716-446655440004",
+          "event_type": "task.deleted",
+          "timestamp": "2026-01-28T15:00:00.000Z",
+          "version": "1.0",
+          "source": "chat-api",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "task_id": 42,
+            "title": "Complete quarterly report"
+          }
+        }
+      ]
+    },
+    {
+      "title": "recurring.task.created",
+      "allOf": [
+        { "$ref": "#/definitions/eventEnvelope" },
+        {
+          "properties": {
+            "event_type": { "const": "recurring.task.created" },
+            "payload": {
+              "type": "object",
+              "required": ["original_task_id", "new_task_id", "recurrence_pattern", "next_due_date"],
+              "properties": {
+                "original_task_id": { "type": "integer" },
+                "new_task_id": { "type": "integer" },
+                "recurrence_pattern": { "type": "string", "enum": ["daily", "weekly", "monthly"] },
+                "next_due_date": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      ],
+      "examples": [
+        {
+          "event_id": "550e8400-e29b-41d4-a716-446655440005",
+          "event_type": "recurring.task.created",
+          "timestamp": "2026-01-28T14:01:00.000Z",
+          "version": "1.0",
+          "source": "recurring-task-service",
+          "user_id": "user-123-uuid",
+          "payload": {
+            "original_task_id": 42,
+            "new_task_id": 43,
+            "recurrence_pattern": "weekly",
+            "next_due_date": "2026-02-04T14:00:00.000Z"
+          }
+        }
+      ]
+    }
+  ]
+}

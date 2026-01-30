@@ -1,0 +1,458 @@
+openapi: 3.0.3
+info:
+  title: Phase V API Extensions
+  description: Extended API endpoints for advanced task features
+  version: 5.0.0
+
+servers:
+  - url: /api/{user_id}
+    variables:
+      user_id:
+        default: "{user_id}"
+        description: Authenticated user ID
+
+paths:
+  /tasks:
+    get:
+      summary: List tasks with filters
+      description: Extended list endpoint with priority, due date, tag filtering
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, completed]
+            default: all
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: due_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks due before this date (ISO-8601)
+        - name: due_after
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks due after this date (ISO-8601)
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          description: Filter by tag names (comma-separated)
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in title and description
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [due_date, priority, created_at, title]
+            default: created_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskExtended'
+                  count:
+                    type: integer
+
+    post:
+      summary: Create task with extended fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateExtended'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExtended'
+
+  /tasks/{task_id}:
+    put:
+      summary: Update task with extended fields
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdateExtended'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExtended'
+
+  /reminders:
+    get:
+      summary: List user's reminders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent, all]
+            default: pending
+      responses:
+        '200':
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reminders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reminder'
+                  count:
+                    type: integer
+
+    post:
+      summary: Create a reminder for a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReminderCreate'
+      responses:
+        '201':
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+
+  /reminders/{reminder_id}:
+    delete:
+      summary: Delete a reminder
+      parameters:
+        - name: reminder_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Reminder deleted
+
+  /tags:
+    get:
+      summary: List user's tags
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+                  count:
+                    type: integer
+
+    post:
+      summary: Create a new tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+  /tags/{tag_id}:
+    delete:
+      summary: Delete a tag
+      description: Removes tag from all tasks and deletes it
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Tag deleted
+
+  /tasks/{task_id}/tags:
+    post:
+      summary: Add tags to a task
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Tags added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExtended'
+
+    delete:
+      summary: Remove tags from a task
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Tags removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExtended'
+
+components:
+  schemas:
+    TaskExtended:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        completed:
+          type: boolean
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+        recurrence_pattern:
+          type: string
+          enum: [daily, weekly, monthly]
+          nullable: true
+        recurrence_end_date:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskCreateExtended:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+        due_date:
+          type: string
+          format: date-time
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        recurrence_pattern:
+          type: string
+          enum: [daily, weekly, monthly]
+        recurrence_end_date:
+          type: string
+          format: date-time
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          maxItems: 20
+
+    TaskUpdateExtended:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+        recurrence_pattern:
+          type: string
+          enum: [daily, weekly, monthly]
+          nullable: true
+        recurrence_end_date:
+          type: string
+          format: date-time
+          nullable: true
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          maxItems: 20
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        task_title:
+          type: string
+        remind_at:
+          type: string
+          format: date-time
+        sent:
+          type: boolean
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ReminderCreate:
+      type: object
+      required:
+        - task_id
+        - remind_at
+      properties:
+        task_id:
+          type: integer
+        remind_at:
+          type: string
+          format: date-time
+          description: Must be in the future
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    TagCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

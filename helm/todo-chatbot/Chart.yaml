@@ -1,0 +1,32 @@
+apiVersion: v2
+name: todo-chatbot
+description: Phase IV Todo Chatbot - AI-powered task management application with Next.js frontend and FastAPI backend
+
+type: application
+
+# Chart version (follows SemVer)
+version: 0.1.0
+
+# Application version
+appVersion: "1.0.0"
+
+keywords:
+  - todo
+  - chatbot
+  - kubernetes
+  - phase-iv
+  - nextjs
+  - fastapi
+  - ai
+
+home: https://github.com/panaversity/hackathon
+
+maintainers:
+  - name: Developer
+    email: developer@example.com
+
+sources:
+  - https://github.com/panaversity/hackathon
+
+# Minimum Kubernetes version
+kubeVersion: ">=1.19.0-0"

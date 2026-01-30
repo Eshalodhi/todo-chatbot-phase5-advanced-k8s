@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-kafka
+  namespace: todo-prod
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: "redpanda:9092"
+    - name: authRequired
+      value: "false"
+    - name: consumerGroup
+      value: "todo-services"
+    - name: maxMessageBytes
+      value: "1048576"

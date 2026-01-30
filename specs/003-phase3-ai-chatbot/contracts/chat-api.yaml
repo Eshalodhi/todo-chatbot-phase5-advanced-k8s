@@ -1,0 +1,383 @@
+openapi: 3.1.0
+info:
+  title: Phase III Chat API
+  description: AI-powered chat endpoint for task management via natural language
+  version: 1.0.0
+  contact:
+    name: Phase III Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /api/{user_id}/chat:
+    post:
+      operationId: sendChatMessage
+      summary: Send a chat message
+      description: |
+        Process a natural language message through the AI chatbot.
+        The chatbot can execute MCP tools (add_task, list_tasks, complete_task,
+        delete_task, update_task) based on user intent.
+
+        **Stateless Design**: Each request is self-contained. Conversation history
+        is loaded from the database, processed, and stored back. Server holds no
+        state between requests.
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User ID from JWT token (must match token's 'sub' claim)
+          schema:
+            type: string
+            example: "usr_abc123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              newConversation:
+                summary: Start new conversation
+                value:
+                  message: "Add a task to buy groceries"
+              continueConversation:
+                summary: Continue existing conversation
+                value:
+                  message: "What are my tasks?"
+                  conversation_id: 42
+      responses:
+        '200':
+          description: Chat message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                taskCreated:
+                  summary: Task created via chat
+                  value:
+                    conversation_id: 42
+                    response: "I've created a task 'Buy groceries' for you!"
+                    tool_calls:
+                      - tool: "add_task"
+                        success: true
+                        result:
+                          task_id: 123
+                          status: "created"
+                          title: "Buy groceries"
+                taskListed:
+                  summary: Tasks listed via chat
+                  value:
+                    conversation_id: 42
+                    response: "Here are your tasks:\n1. Buy groceries\n2. Call mom"
+                    tool_calls:
+                      - tool: "list_tasks"
+                        success: true
+                        result:
+                          tasks:
+                            - id: 123
+                              title: "Buy groceries"
+                              is_completed: false
+                            - id: 124
+                              title: "Call mom"
+                              is_completed: false
+                          count: 2
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyMessage:
+                  summary: Empty message
+                  value:
+                    error: "VALIDATION_ERROR"
+                    message: "Message cannot be empty"
+                    field: "message"
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidToken:
+                  summary: Invalid token
+                  value:
+                    error: "UNAUTHORIZED"
+                    message: "Invalid token"
+        '403':
+          description: Forbidden - User ID mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                userMismatch:
+                  summary: User ID does not match token
+                  value:
+                    error: "FORBIDDEN"
+                    message: "Cannot access resources for other users"
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conversationNotFound:
+                  summary: Conversation does not exist
+                  value:
+                    error: "NOT_FOUND"
+                    message: "Conversation not found"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rateLimited:
+                  summary: Too many requests
+                  value:
+                    error: "RATE_LIMITED"
+                    message: "Too many requests. Please try again later."
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cohereError:
+                  summary: Cohere API error
+                  value:
+                    error: "AI_SERVICE_ERROR"
+                    message: "Unable to process your request. Please try again."
+
+  /api/{user_id}/conversations:
+    get:
+      operationId: listConversations
+      summary: List user's conversations
+      description: Get all conversations for the authenticated user, ordered by most recent activity.
+      tags:
+        - Conversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSummary'
+                  count:
+                    type: integer
+
+  /api/{user_id}/conversations/{conversation_id}/messages:
+    get:
+      operationId: getConversationMessages
+      summary: Get conversation messages
+      description: Retrieve messages from a specific conversation.
+      tags:
+        - Conversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessageResponse'
+                  conversation_id:
+                    type: integer
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from Better Auth login
+
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: User's natural language message
+          example: "Add a task to buy groceries"
+        conversation_id:
+          type: integer
+          nullable: true
+          description: |
+            Optional conversation ID to continue an existing conversation.
+            If not provided, a new conversation is created.
+          example: 42
+
+    ChatResponse:
+      type: object
+      required:
+        - conversation_id
+        - response
+        - tool_calls
+      properties:
+        conversation_id:
+          type: integer
+          description: ID of the conversation (new or existing)
+          example: 42
+        response:
+          type: string
+          description: AI assistant's response to the user
+          example: "I've created a task 'Buy groceries' for you!"
+        tool_calls:
+          type: array
+          description: List of MCP tools that were executed
+          items:
+            $ref: '#/components/schemas/ToolCallResult'
+
+    ToolCallResult:
+      type: object
+      required:
+        - tool
+        - success
+        - result
+      properties:
+        tool:
+          type: string
+          enum: [add_task, list_tasks, complete_task, delete_task, update_task]
+          description: Name of the MCP tool that was called
+        success:
+          type: boolean
+          description: Whether the tool execution succeeded
+        result:
+          type: object
+          description: Tool-specific result data
+          additionalProperties: true
+        error:
+          type: string
+          nullable: true
+          description: Error message if success is false
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+
+    MessageResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant, tool]
+        content:
+          type: string
+        tool_calls:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - RATE_LIMITED
+            - AI_SERVICE_ERROR
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: Human-readable error message
+        field:
+          type: string
+          nullable: true
+          description: Field that caused the error (for validation errors)
+
+tags:
+  - name: Chat
+    description: AI-powered chat endpoint for task management
+  - name: Conversations
+    description: Conversation management endpoints

@@ -1,0 +1,31 @@
+# Notification Service Dependencies
+# Phase V - Event-Driven Architecture
+
+# Core Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.0.0
+
+# Kafka Consumer
+aiokafka>=0.10.0
+
+# Dapr Integration
+dapr>=1.12.0
+
+# Scheduler
+APScheduler>=3.10.0
+
+# Email Notifications
+aiosmtplib>=3.0.0
+
+# Database (shared Neon PostgreSQL)
+sqlmodel>=0.0.31
+psycopg2-binary>=2.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+python-dateutil>=2.8.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.25.0

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-chatbot.fullname" . }}-recurring
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: recurring
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.recurring.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: recurring
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: recurring
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        {{- if .Values.dapr.enabled }}
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "recurring-service"
+        dapr.io/app-port: "8000"
+        {{- end }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: recurring
+          image: "{{ .Values.recurring.image.repository }}:{{ .Values.recurring.image.tag }}"
+          imagePullPolicy: {{ .Values.recurring.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.recurring.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          envFrom:
+            - configMapRef:
+                name: {{ include "todo-chatbot.fullname" . }}-config
+            {{- if or .Values.secrets.databaseUrl .Values.secrets.betterAuthSecret }}
+            - secretRef:
+                name: {{ include "todo-chatbot.fullname" . }}-secrets
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      restartPolicy: Always

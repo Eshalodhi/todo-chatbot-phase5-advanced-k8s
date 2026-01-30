@@ -1,0 +1,93 @@
+version: "3.8"
+
+# Redpanda (Kafka-compatible) for local development
+# Based on specs/phase5/research.md
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://localhost:9092
+      - --pandaproxy-addr PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr PLAINTEXT://localhost:8082
+      - --schema-registry-addr PLAINTEXT://0.0.0.0:8081
+    ports:
+      - "9092:9092"    # Kafka protocol
+      - "8081:8081"    # Schema registry
+      - "8082:8082"    # REST proxy / Admin API
+      - "9644:9644"    # Admin API
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: redpanda-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"    # Console UI
+    environment:
+      - KAFKA_BROKERS=redpanda:9092
+      - KAFKA_SCHEMAREGISTRY_ENABLED=true
+      - KAFKA_SCHEMAREGISTRY_URLS=http://redpanda:8081
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/admin/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Topic initialization
+  redpanda-init:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda-init
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command: |
+      -c '
+      echo "Creating topics..."
+
+      # Main event topics (3 partitions, 7-day retention)
+      rpk topic create task-events --brokers redpanda:9092 \
+        --partitions 3 \
+        --config retention.ms=604800000
+
+      rpk topic create reminder-events --brokers redpanda:9092 \
+        --partitions 3 \
+        --config retention.ms=604800000
+
+      rpk topic create notification-events --brokers redpanda:9092 \
+        --partitions 3 \
+        --config retention.ms=604800000
+
+      # Dead letter queue topics (1 partition, 30-day retention)
+      rpk topic create dlq.task-events --brokers redpanda:9092 \
+        --partitions 1 \
+        --config retention.ms=2592000000
+
+      rpk topic create dlq.reminder-events --brokers redpanda:9092 \
+        --partitions 1 \
+        --config retention.ms=2592000000
+
+      echo "Topics created successfully!"
+      rpk topic list --brokers redpanda:9092
+      '
+
+volumes:
+  redpanda-data:

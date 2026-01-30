@@ -1,0 +1,31 @@
+{{- if .Values.dapr.enabled }}
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-kafka
+  namespace: {{ .Values.namespace }}
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: {{ .Values.dapr.kafka.brokers | default "redpanda:9092" | quote }}
+    - name: authRequired
+      value: "false"
+    - name: consumerGroup
+      value: "todo-services"
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: {{ .Values.namespace }}
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: {{ include "todo-chatbot.fullname" . }}-secrets
+        key: DATABASE_URL
+{{- end }}
