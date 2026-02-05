@@ -4,6 +4,7 @@ import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { TagBadgeList } from './tag-badge';
 import {
   CheckCircle2,
   Circle,
@@ -11,6 +12,9 @@ import {
   Edit2,
   Trash2,
   Calendar,
+  Flag,
+  CalendarClock,
+  Repeat,
 } from 'lucide-react';
 import type { Task } from '@/types';
 
@@ -174,6 +178,26 @@ function AnimatedCheckbox({ checked, onClick, disabled }: AnimatedCheckboxProps)
 }
 
 // =============================================================================
+// Priority Badge Component
+// =============================================================================
+
+const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
+  high: { label: 'High', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  medium: { label: 'Medium', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  low: { label: 'Low', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+};
+
+function PriorityBadge({ priority }: { priority: string }) {
+  const config = PRIORITY_CONFIG[priority.toLowerCase()] || PRIORITY_CONFIG.medium;
+  return (
+    <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium', config.className)}>
+      <Flag className="w-2.5 h-2.5" />
+      {config.label}
+    </span>
+  );
+}
+
+// =============================================================================
 // Animation Config
 // =============================================================================
 
@@ -215,12 +239,13 @@ export function TaskCard({
       transition={cardTransition}
       style={{ willChange: 'transform, opacity' }}
       className={cn(
-        'group relative p-4 rounded-lg',
+        'group relative p-4 rounded-lg overflow-visible',
         'bg-card border border-border',
         'hover:border-primary-300',
         'shadow-sm hover:shadow-md',
         'transition-[border-color,box-shadow] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
         task.is_completed && 'opacity-60',
+        showMenu && 'z-50',
         className
       )}
     >
@@ -249,16 +274,46 @@ export function TaskCard({
           )}
 
           {/* Meta info */}
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {task.priority && task.priority.toLowerCase() !== 'medium' && (
+              <PriorityBadge priority={task.priority} />
+            )}
+
+            {task.due_date && (
+              <span className={cn(
+                'flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded',
+                new Date(task.due_date) < new Date() && !task.is_completed
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  : 'text-muted-foreground'
+              )}>
+                <CalendarClock className="w-3 h-3" />
+                {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+
+            {task.recurrence_pattern && (
+              <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30">
+                <Repeat className="w-3 h-3" />
+                {task.recurrence_pattern}
+              </span>
+            )}
+
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Calendar className="w-3 h-3" />
               {formattedDate}
             </span>
           </div>
+
+          {/* Tags */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="mt-2">
+              <TagBadgeList tags={task.tags} maxVisible={4} size="sm" />
+            </div>
+          )}
         </div>
 
         {/* Actions */}
-        <div className="relative">
+        <div className="relative z-10">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -266,7 +321,10 @@ export function TaskCard({
               'opacity-0 group-hover:opacity-100 transition-opacity',
               showMenu && 'opacity-100'
             )}
-            onClick={() => setShowMenu(!showMenu)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
             aria-label="Task options"
             aria-haspopup="true"
             aria-expanded={showMenu}

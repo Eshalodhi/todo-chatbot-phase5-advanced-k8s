@@ -27,6 +27,7 @@ DLQ_TOPIC = "dlq.task-events"
 
 async def create_consumer() -> AIOKafkaConsumer:
     """Create and start a Kafka consumer for task events."""
+    logger.info(f"Connecting to Kafka brokers: {KAFKA_BROKERS}")
     consumer = AIOKafkaConsumer(
         TASK_EVENTS_TOPIC,
         bootstrap_servers=KAFKA_BROKERS,
@@ -116,16 +117,37 @@ async def route_to_dlq(event: dict, error: str) -> None:
     logger.error(f"DLQ event: {json.dumps(event)}, error: {error}")
 
 
-async def start_consumer() -> None:
-    """Start the Kafka consumer in a background task."""
+async def _connect_with_retry() -> None:
+    """Attempt to connect to Kafka with retry, runs as a background task."""
     global _consumer, _consumer_task
+    max_retries = 5
+    retry_delay = 5
 
-    try:
-        _consumer = await create_consumer()
-        _consumer_task = asyncio.create_task(consume_loop(_consumer))
-        logger.info("Consumer started in background")
-    except Exception as e:
-        logger.warning(f"Failed to start Kafka consumer: {e}. Running without event consumption.")
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Connecting to Kafka brokers: {KAFKA_BROKERS} (attempt {attempt}/{max_retries})")
+            _consumer = await asyncio.wait_for(create_consumer(), timeout=10)
+            _consumer_task = asyncio.create_task(consume_loop(_consumer))
+            logger.info("Kafka consumer connected and running")
+            return
+        except asyncio.TimeoutError:
+            logger.warning(f"Kafka connection timed out (attempt {attempt}/{max_retries})")
+        except Exception as e:
+            logger.warning(f"Kafka connection failed (attempt {attempt}/{max_retries}): {e}")
+
+        if attempt < max_retries:
+            await asyncio.sleep(retry_delay)
+
+    logger.warning("Could not connect to Kafka after all retries. Running without event consumption.")
+
+
+_startup_task: Optional[asyncio.Task] = None
+
+
+async def start_consumer() -> None:
+    """Start the Kafka consumer connection in a non-blocking background task."""
+    global _startup_task
+    _startup_task = asyncio.create_task(_connect_with_retry())
 
 
 async def stop_consumer() -> None:

@@ -8,9 +8,10 @@ change, update, modify, edit, or rename a task's title or description.
 import logging
 from typing import Optional
 
+from typing import List
 from sqlmodel import Session, select
 
-from app.models import Task
+from app.models import Task, Tag, TaskTag
 from app.services.chat.tools.base import ToolResult
 from app.services.chat.tools.complete_task import find_task_by_identifier
 
@@ -24,6 +25,7 @@ async def handle_update_task(
     task_identifier: Optional[str] = None,
     new_title: Optional[str] = None,
     new_description: Optional[str] = None,
+    tags: Optional[str] = None,
     **kwargs
 ) -> ToolResult:
     """
@@ -36,6 +38,7 @@ async def handle_update_task(
         task_identifier: Optional text to match task title
         new_title: Optional new title for the task
         new_description: Optional new description for the task
+        tags: Optional comma-separated tag names to assign (replaces existing)
 
     Returns:
         ToolResult with update status
@@ -82,10 +85,10 @@ async def handle_update_task(
         )
 
     # Check if there are any changes to make
-    if new_title is None and new_description is None:
+    if new_title is None and new_description is None and tags is None:
         return ToolResult(
             success=False,
-            message="No changes specified. Provide a new title or description."
+            message="No changes specified. Provide a new title, description, or tags."
         )
 
     # Validate new title if provided
@@ -116,25 +119,74 @@ async def handle_update_task(
         session.commit()
         session.refresh(task)
 
+        # Handle tags if provided
+        assigned_tags: List[str] = []
+        if tags is not None:
+            # Remove existing tags
+            existing_task_tags = list(session.exec(
+                select(TaskTag).where(TaskTag.task_id == task.id)
+            ).all())
+            for tt in existing_task_tags:
+                session.delete(tt)
+            session.commit()
+
+            # Add new tags
+            if tags.strip():
+                tag_names = [t.strip() for t in tags.split(",") if t.strip()]
+                for tag_name in tag_names:
+                    # Find or create tag
+                    tag = session.exec(
+                        select(Tag)
+                        .where(Tag.user_id == user_id)
+                        .where(Tag.name == tag_name)
+                    ).first()
+
+                    if not tag:
+                        # Create new tag
+                        tag = Tag(user_id=user_id, name=tag_name)
+                        session.add(tag)
+                        session.commit()
+                        session.refresh(tag)
+
+                    # Create task-tag association
+                    task_tag = TaskTag(task_id=task.id, tag_id=tag.id)
+                    session.add(task_tag)
+                    assigned_tags.append(tag_name)
+
+                if assigned_tags:
+                    session.commit()
+
         logger.info(f"Updated task {task.id} for user {user_id}: {previous_title} -> {task.title}")
 
         # Build response message
+        message_parts = []
         if new_title and new_title != previous_title:
-            message = f"Task updated from '{previous_title}' to '{task.title}'"
+            message_parts.append(f"Task updated from '{previous_title}' to '{task.title}'")
         elif new_description is not None:
-            message = f"Task '{task.title}' description updated"
-        else:
-            message = f"Task '{task.title}' updated"
+            message_parts.append(f"Task '{task.title}' description updated")
+
+        if tags is not None:
+            if assigned_tags:
+                message_parts.append(f"tags set to: {', '.join(assigned_tags)}")
+            else:
+                message_parts.append("tags cleared")
+
+        if not message_parts:
+            message_parts.append(f"Task '{task.title}' updated")
+
+        response_data = {
+            "task_id": task.id,
+            "status": "updated",
+            "title": task.title,
+            "previous_title": previous_title
+        }
+        if assigned_tags:
+            response_data["tags"] = assigned_tags
 
         return ToolResult(
             success=True,
-            message=message,
-            data={
-                "task_id": task.id,
-                "status": "updated",
-                "title": task.title,
-                "previous_title": previous_title
-            }
+            message=", ".join(message_parts),
+            data=response_data
         )
 
     except Exception as e:

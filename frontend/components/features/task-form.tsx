@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { createTaskSchema, type CreateTaskInput } from '@/lib/validations';
-import { Check, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Check, AlertCircle, Loader2, Sparkles, Flag, CalendarClock, Repeat, Tags } from 'lucide-react';
+import { TagInput } from './tag-input';
+import type { CreateTaskRequest, Tag } from '@/types';
 
 // =============================================================================
 // Types
@@ -18,12 +20,35 @@ interface TaskFormProps {
   initialData?: {
     title: string;
     description?: string;
+    priority?: string;
+    due_date?: string;
+    recurrence_pattern?: string;
+    tags?: string[];
   };
-  onSubmit: (data: CreateTaskInput) => Promise<void>;
+  availableTags?: Tag[];
+  onSubmit: (data: CreateTaskRequest) => Promise<void>;
   onCancel: () => void;
   isEditing?: boolean;
   className?: string;
 }
+
+// =============================================================================
+// Priority & Recurrence Options
+// =============================================================================
+
+const PRIORITY_OPTIONS = [
+  { value: '', label: 'Default (Medium)', color: 'text-muted-foreground' },
+  { value: 'low', label: 'Low', color: 'text-blue-500' },
+  { value: 'medium', label: 'Medium', color: 'text-yellow-500' },
+  { value: 'high', label: 'High', color: 'text-red-500' },
+] as const;
+
+const RECURRENCE_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+] as const;
 
 // =============================================================================
 // Character Counter Component
@@ -76,6 +101,7 @@ function CharacterCounter({ current, max, warning = max * 0.8 }: CharacterCounte
 
 export function TaskForm({
   initialData,
+  availableTags = [],
   onSubmit,
   onCancel,
   isEditing = false,
@@ -85,6 +111,7 @@ export function TaskForm({
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isTitleFocused, setIsTitleFocused] = React.useState(false);
   const [isDescriptionFocused, setIsDescriptionFocused] = React.useState(false);
+  const [selectedTags, setSelectedTags] = React.useState<string[]>(initialData?.tags || []);
 
   const {
     register,
@@ -97,9 +124,36 @@ export function TaskForm({
     defaultValues: {
       title: initialData?.title || '',
       description: initialData?.description || '',
+      priority: (initialData?.priority as 'low' | 'medium' | 'high' | undefined) || undefined,
+      due_date: initialData?.due_date ? initialData.due_date.slice(0, 16) : '',
+      recurrence_pattern: (initialData?.recurrence_pattern as 'daily' | 'weekly' | 'monthly' | undefined) || undefined,
     },
     mode: 'onChange',
   });
+
+  // Reset form when initialData changes (e.g., editing different task)
+  React.useEffect(() => {
+    if (initialData) {
+      reset({
+        title: initialData.title || '',
+        description: initialData.description || '',
+        priority: (initialData.priority as 'low' | 'medium' | 'high' | undefined) || undefined,
+        due_date: initialData.due_date ? initialData.due_date.slice(0, 16) : '',
+        recurrence_pattern: (initialData.recurrence_pattern as 'daily' | 'weekly' | 'monthly' | undefined) || undefined,
+      });
+      setSelectedTags(initialData.tags || []);
+    } else {
+      // Reset to empty for create mode
+      reset({
+        title: '',
+        description: '',
+        priority: undefined,
+        due_date: '',
+        recurrence_pattern: undefined,
+      });
+      setSelectedTags([]);
+    }
+  }, [initialData, reset]);
 
   // Watch values for character counters
   const titleValue = watch('title') || '';
@@ -109,12 +163,23 @@ export function TaskForm({
   const handleFormSubmit = async (data: CreateTaskInput) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      // Transform empty strings to undefined for API compatibility
+      const cleanedData: CreateTaskRequest = {
+        title: data.title,
+        description: data.description || undefined,
+        priority: (data.priority || undefined) as CreateTaskRequest['priority'],
+        due_date: data.due_date || undefined,
+        recurrence_pattern: (data.recurrence_pattern || undefined) as CreateTaskRequest['recurrence_pattern'],
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+      };
+
+      await onSubmit(cleanedData);
       setShowSuccess(true);
 
       // Reset form after success animation
       setTimeout(() => {
         reset();
+        setSelectedTags([]);
         setShowSuccess(false);
         onCancel();
       }, 600);
@@ -137,13 +202,13 @@ export function TaskForm({
   return (
     <motion.form
       onSubmit={handleSubmit(handleFormSubmit)}
-      className={cn('space-y-6', className)}
+      className={cn('space-y-3', className)}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
       {/* Title Field */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         <div className="flex items-center justify-between">
           <label
             htmlFor="title"
@@ -172,9 +237,9 @@ export function TaskForm({
             onFocus={() => setIsTitleFocused(true)}
             onBlur={() => setIsTitleFocused(false)}
             className={cn(
-              'w-full px-4 py-3 rounded-xl border-2 transition-all duration-200',
+              'w-full px-3 py-2 rounded-lg border-2 transition-all duration-200',
               'bg-neutral-50 dark:bg-neutral-800/50',
-              'text-neutral-900 dark:text-neutral-100 text-base font-medium',
+              'text-neutral-900 dark:text-neutral-100 text-sm font-medium',
               'placeholder:text-neutral-400 dark:placeholder:text-neutral-500',
               'focus:outline-none focus:bg-white dark:focus:bg-neutral-800',
               errors.title
@@ -210,7 +275,7 @@ export function TaskForm({
       </div>
 
       {/* Description Field */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         <div className="flex items-center justify-between">
           <label
             htmlFor="description"
@@ -230,15 +295,15 @@ export function TaskForm({
             {...register('description')}
             id="description"
             placeholder="Add more details about your task..."
-            rows={4}
+            rows={1}
             disabled={isSubmitting}
             maxLength={1000}
             onFocus={() => setIsDescriptionFocused(true)}
             onBlur={() => setIsDescriptionFocused(false)}
             className={cn(
-              'w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 resize-none',
+              'w-full px-3 py-2 rounded-lg border-2 transition-all duration-200 resize-none',
               'bg-neutral-50 dark:bg-neutral-800/50',
-              'text-neutral-900 dark:text-neutral-100 text-base leading-relaxed',
+              'text-neutral-900 dark:text-neutral-100 text-sm leading-relaxed',
               'placeholder:text-neutral-400 dark:placeholder:text-neutral-500',
               'focus:outline-none focus:bg-white dark:focus:bg-neutral-800',
               errors.description
@@ -273,11 +338,108 @@ export function TaskForm({
         </AnimatePresence>
       </div>
 
-      {/* Divider */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-neutral-200 dark:border-neutral-700" />
+      {/* Phase V Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Priority */}
+        <div className="space-y-1">
+          <label
+            htmlFor="priority"
+            className="text-xs font-semibold text-foreground flex items-center gap-1.5"
+          >
+            <Flag className="w-3 h-3" />
+            Priority
+          </label>
+          <select
+            {...register('priority')}
+            id="priority"
+            disabled={isSubmitting}
+            className={cn(
+              'w-full px-2.5 py-1.5 rounded-lg border-2 transition-all duration-200 appearance-none',
+              'bg-neutral-50 dark:bg-neutral-800/50',
+              'text-neutral-900 dark:text-neutral-100 text-sm',
+              'border-neutral-200 dark:border-neutral-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10',
+              'focus:outline-none focus:bg-white dark:focus:bg-neutral-800',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            {PRIORITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* Due Date */}
+        <div className="space-y-1">
+          <label
+            htmlFor="due_date"
+            className="text-xs font-semibold text-foreground flex items-center gap-1.5"
+          >
+            <CalendarClock className="w-3 h-3" />
+            Due Date
+          </label>
+          <input
+            {...register('due_date')}
+            type="datetime-local"
+            id="due_date"
+            disabled={isSubmitting}
+            className={cn(
+              'w-full px-2.5 py-1.5 rounded-lg border-2 transition-all duration-200',
+              'bg-neutral-50 dark:bg-neutral-800/50',
+              'text-neutral-900 dark:text-neutral-100 text-sm',
+              'border-neutral-200 dark:border-neutral-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10',
+              'focus:outline-none focus:bg-white dark:focus:bg-neutral-800',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          />
+        </div>
+
+        {/* Recurrence */}
+        <div className="space-y-1">
+          <label
+            htmlFor="recurrence_pattern"
+            className="text-xs font-semibold text-foreground flex items-center gap-1.5"
+          >
+            <Repeat className="w-3 h-3" />
+            Repeat
+          </label>
+          <select
+            {...register('recurrence_pattern')}
+            id="recurrence_pattern"
+            disabled={isSubmitting}
+            className={cn(
+              'w-full px-2.5 py-1.5 rounded-lg border-2 transition-all duration-200 appearance-none',
+              'bg-neutral-50 dark:bg-neutral-800/50',
+              'text-neutral-900 dark:text-neutral-100 text-sm',
+              'border-neutral-200 dark:border-neutral-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10',
+              'focus:outline-none focus:bg-white dark:focus:bg-neutral-800',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            {RECURRENCE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Tags Field */}
+      <div className="space-y-1">
+        <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <Tags className="w-3.5 h-3.5" />
+          Tags
+          <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+        </label>
+        <TagInput
+          value={selectedTags}
+          onChange={setSelectedTags}
+          availableTags={availableTags}
+          placeholder="Add tags to categorize..."
+          disabled={isSubmitting}
+        />
       </div>
 
       {/* Action Buttons */}

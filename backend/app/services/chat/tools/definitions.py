@@ -59,6 +59,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                             "Optional end date for recurrence in ISO 8601 format. "
                             "After this date, no new recurring instances will be created."
                         )
+                    },
+                    "tags": {
+                        "type": "string",
+                        "description": (
+                            "Optional comma-separated tag names to categorize the task. "
+                            "Example: 'work, urgent' or 'personal'. Tags will be created "
+                            "automatically if they don't exist."
+                        )
                     }
                 },
                 "required": ["title"]
@@ -219,6 +227,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "new_description": {
                         "type": "string",
                         "description": "The new description for the task (optional)"
+                    },
+                    "tags": {
+                        "type": "string",
+                        "description": (
+                            "Optional comma-separated tag names to assign to the task. "
+                            "Replaces any existing tags. Example: 'work, urgent' or leave "
+                            "empty to clear all tags."
+                        )
                     }
                 },
                 "required": []

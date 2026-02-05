@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { TaskForm } from './task-form';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, X } from 'lucide-react';
-import type { Task, CreateTaskRequest, UpdateTaskRequest } from '@/types';
+import type { Task, Tag, CreateTaskRequest, UpdateTaskRequest } from '@/types';
 
 // =============================================================================
 // Create Task Modal
@@ -23,12 +23,14 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: CreateTaskRequest) => Promise<void>;
+  availableTags?: Tag[];
 }
 
 export function CreateTaskModal({
   isOpen,
   onClose,
   onSubmit,
+  availableTags = [],
 }: CreateTaskModalProps) {
   const handleSubmit = async (data: CreateTaskRequest) => {
     await onSubmit(data);
@@ -40,16 +42,16 @@ export function CreateTaskModal({
         {/* Header with gradient accent */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/10" />
-          <DialogHeader className="relative px-6 pt-6 pb-4">
+          <DialogHeader className="relative px-5 pt-4 pb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
                 >
                   <svg
-                    className="w-5 h-5 text-white"
+                    className="w-4 h-4 text-white"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -60,8 +62,8 @@ export function CreateTaskModal({
                 </motion.div>
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">Create New Task</DialogTitle>
-                <DialogDescription className="text-sm mt-0.5">
+                <DialogTitle className="text-lg font-bold">Create New Task</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
                   Add a new task to your list
                 </DialogDescription>
               </div>
@@ -70,11 +72,12 @@ export function CreateTaskModal({
         </div>
 
         {/* Form */}
-        <div className="px-6 pb-6">
+        <div className="px-5 pb-4">
           <TaskForm
             onSubmit={handleSubmit}
             onCancel={onClose}
             isEditing={false}
+            availableTags={availableTags}
           />
         </div>
       </DialogContent>
@@ -91,6 +94,7 @@ interface EditTaskModalProps {
   onClose: () => void;
   task: Task | null;
   onSubmit: (taskId: number, data: UpdateTaskRequest) => Promise<void>;
+  availableTags?: Tag[];
 }
 
 export function EditTaskModal({
@@ -98,6 +102,7 @@ export function EditTaskModal({
   onClose,
   task,
   onSubmit,
+  availableTags = [],
 }: EditTaskModalProps) {
   const handleSubmit = async (data: UpdateTaskRequest) => {
     if (!task) return;
@@ -112,16 +117,16 @@ export function EditTaskModal({
         {/* Header with gradient accent */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-br from-secondary-500/10 via-transparent to-primary-500/10" />
-          <DialogHeader className="relative px-6 pt-6 pb-4">
+          <DialogHeader className="relative px-5 pt-4 pb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary-500 to-secondary-600 flex items-center justify-center shadow-lg shadow-secondary-500/25">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-secondary-500 to-secondary-600 flex items-center justify-center shadow-lg shadow-secondary-500/25">
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
                 >
                   <svg
-                    className="w-5 h-5 text-white"
+                    className="w-4 h-4 text-white"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -132,8 +137,8 @@ export function EditTaskModal({
                 </motion.div>
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">Edit Task</DialogTitle>
-                <DialogDescription className="text-sm mt-0.5">
+                <DialogTitle className="text-lg font-bold">Edit Task</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
                   Update your task details
                 </DialogDescription>
               </div>
@@ -142,15 +147,20 @@ export function EditTaskModal({
         </div>
 
         {/* Form */}
-        <div className="px-6 pb-6">
+        <div className="px-5 pb-4">
           <TaskForm
             initialData={{
               title: task.title,
               description: task.description || '',
+              priority: (task.priority as 'low' | 'medium' | 'high') || undefined,
+              due_date: task.due_date || '',
+              recurrence_pattern: (task.recurrence_pattern as 'daily' | 'weekly' | 'monthly') || undefined,
+              tags: task.tags?.map((t) => t.name) || [],
             }}
             onSubmit={handleSubmit}
             onCancel={onClose}
             isEditing={true}
+            availableTags={availableTags}
           />
         </div>
       </DialogContent>

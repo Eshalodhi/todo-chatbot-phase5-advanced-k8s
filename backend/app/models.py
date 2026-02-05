@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Any
 from sqlmodel import SQLModel, Field, Relationship, Column
-from sqlalchemy import Text, JSON, UniqueConstraint
+from sqlalchemy import String, Text, JSON, UniqueConstraint
 
 
 class Priority(str, Enum):
@@ -79,7 +79,10 @@ class Task(SQLModel, table=True):
 
     # Phase V additions
     due_date: datetime | None = Field(default=None, index=True)
-    priority: Priority = Field(default=Priority.MEDIUM, index=True)
+    priority: str = Field(
+        default="medium",
+        sa_column=Column(String, index=True, default="medium"),
+    )
     recurrence_pattern: RecurrencePattern | None = Field(default=None)
     recurrence_end_date: datetime | None = Field(default=None)
 

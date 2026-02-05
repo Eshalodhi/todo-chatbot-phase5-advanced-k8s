@@ -22,9 +22,9 @@ VALID_PRIORITIES = {p.value for p in Priority}
 
 # Priority sort order (high=1, medium=2, low=3 for desc, reverse for asc)
 PRIORITY_ORDER = {
-    Priority.HIGH: 1,
-    Priority.MEDIUM: 2,
-    Priority.LOW: 3
+    "high": 1,
+    "medium": 2,
+    "low": 3,
 }
 
 
@@ -121,7 +121,7 @@ async def handle_list_tasks(
 
         # Apply priority filter
         if priority:
-            query = query.where(Task.priority == Priority(priority))
+            query = query.where(Task.priority == priority.lower())
 
         # Apply due date filters
         if due_before_dt:
@@ -165,7 +165,7 @@ async def handle_list_tasks(
         # Apply sorting
         if sort_by == "priority":
             # Sort by priority: high first, then medium, then low
-            tasks.sort(key=lambda t: PRIORITY_ORDER.get(t.priority, 99))
+            tasks.sort(key=lambda t: PRIORITY_ORDER.get(t.priority.lower() if t.priority else "medium", 99))
         elif sort_by == "due_date":
             # Sort by due date, nulls last
             tasks.sort(key=lambda t: (t.due_date is None, t.due_date or datetime.max))
@@ -187,19 +187,29 @@ async def handle_list_tasks(
         filter_desc = f" (filters: {', '.join(filters_applied)})" if filters_applied else ""
         logger.info(f"Listed {len(tasks)} tasks for user {user_id}{filter_desc}")
 
-        # Format tasks for response
-        task_list = [
-            {
+        # Format tasks for response with tags
+        task_list = []
+        for task in tasks:
+            # Get tags for this task
+            task_tag_records = list(session.exec(
+                select(TaskTag).where(TaskTag.task_id == task.id)
+            ).all())
+            task_tags = []
+            for tt in task_tag_records:
+                tag_obj = session.get(Tag, tt.tag_id)
+                if tag_obj:
+                    task_tags.append({"id": tag_obj.id, "name": tag_obj.name, "color": tag_obj.color})
+
+            task_list.append({
                 "id": task.id,
                 "title": task.title,
                 "description": task.description,
                 "is_completed": task.is_completed,
-                "priority": task.priority.value if task.priority else "medium",
+                "priority": (task.priority.lower() if task.priority else "medium"),
                 "due_date": task.due_date.isoformat() if task.due_date else None,
-                "created_at": task.created_at.isoformat()
-            }
-            for task in tasks
-        ]
+                "created_at": task.created_at.isoformat(),
+                "tags": task_tags
+            })
 
         # Build response message
         if not tasks:

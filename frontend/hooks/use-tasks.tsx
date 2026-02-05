@@ -97,10 +97,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     taskId: number,
     data: UpdateTaskRequest
   ): Promise<Task | null> => {
-    // Optimistic update for immediate feedback
+    // Optimistic update for immediate feedback (excluding tags which need conversion)
+    const { tags: _tags, ...restData } = data;
     setTasks((prev) =>
       prev.map((task) =>
-        task.id === taskId ? { ...task, ...data } : task
+        task.id === taskId ? { ...task, ...restData } : task
       )
     );
 

@@ -25,12 +25,30 @@ export interface UserSession {
  * Task entity - represents a user's task item
  * Field names match backend SQLModel schema
  */
+export type TaskPriority = 'low' | 'medium' | 'high';
+export type RecurrencePattern = 'daily' | 'weekly' | 'monthly';
+
+/**
+ * Tag entity for categorizing tasks
+ */
+export interface Tag {
+  id: number;
+  name: string;
+  color: string | null;
+  created_at?: string;
+}
+
 export interface Task {
   id: number;           // Auto-increment PK
   user_id: string;      // FK to User.id
   title: string;        // Required, 1-200 chars
   description: string | null;  // Optional, max 1000 chars
   is_completed: boolean;   // Default: false (backend field name)
+  priority: string;     // 'low' | 'medium' | 'high'
+  due_date: string | null;  // ISO 8601 datetime or null
+  recurrence_pattern: string | null;  // 'daily' | 'weekly' | 'monthly' or null
+  recurrence_end_date: string | null; // ISO 8601 datetime or null
+  tags: Tag[];          // Phase V: Tags assigned to this task
   created_at: string;   // ISO 8601 datetime
   updated_at: string;   // ISO 8601 datetime
 }
@@ -48,14 +66,25 @@ export type TaskCompleted = Task['is_completed'];
 export interface CreateTaskRequest {
   title: string;        // Required, 1-200 chars
   description?: string; // Optional, max 1000 chars
+  priority?: TaskPriority;
+  due_date?: string;    // ISO 8601 format
+  recurrence_pattern?: RecurrencePattern;
+  recurrence_end_date?: string;
+  tags?: string[];      // Tag names to assign
 }
 
 /**
  * Update task request body
  */
 export interface UpdateTaskRequest {
-  title: string;        // Required, 1-200 chars
+  title?: string;       // 1-200 chars
   description?: string; // Optional, max 1000 chars
+  is_completed?: boolean;
+  priority?: TaskPriority;
+  due_date?: string | null;
+  recurrence_pattern?: RecurrencePattern | null;
+  recurrence_end_date?: string | null;
+  tags?: string[];      // Tag names to assign (replaces existing)
 }
 
 /**
@@ -63,6 +92,35 @@ export interface UpdateTaskRequest {
  */
 export interface TaskListResponse {
   tasks: Task[];
+  count: number;
+}
+
+/**
+ * Query params for fetching tasks
+ */
+export interface TaskQueryParams {
+  search?: string;
+  priority?: TaskPriority;
+  tags?: string[];
+  is_completed?: boolean;
+  sort_by?: 'created_at' | 'priority' | 'due_date' | 'title';
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Tag list API response
+ */
+export interface TagListResponse {
+  tags: Tag[];
+  count: number;
+}
+
+/**
+ * Create tag request
+ */
+export interface CreateTagRequest {
+  name: string;
+  color?: string;
 }
 
 /**
@@ -127,7 +185,7 @@ export type TaskFilter = 'all' | 'pending' | 'completed';
 /**
  * Task sort options
  */
-export type TaskSort = 'created_at' | 'title' | 'completed';
+export type TaskSort = 'created_at' | 'title' | 'completed' | 'priority' | 'due_date';
 
 /**
  * Task list UI state

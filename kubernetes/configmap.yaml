@@ -22,3 +22,7 @@ data:
   FRONTEND_URL: "http://localhost:3000"
 
   NODE_ENV: "production"
+
+  # Phase V - Kafka (Redpanda on host, accessed via Minikube tunnel)
+  KAFKA_BROKERS: "host.minikube.internal:19092"
+  KAFKA_ENABLED: "true"

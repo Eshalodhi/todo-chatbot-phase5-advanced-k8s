@@ -1,6 +1,7 @@
 """Chat API endpoints for Phase III AI Chatbot."""
 
 import logging
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,8 +14,10 @@ from app.schemas import (
     ChatResponseDTO,
     ConversationDTO,
     MessageDTO,
+    MessageResponseDTO,
 )
 from app.services.chat.service import ChatService
+from app.models import Conversation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +117,8 @@ async def get_conversations(
             ConversationDTO(
                 id=conv.id,
                 title=conv.title,
-                created_at=conv.created_at,
-                updated_at=conv.updated_at,
+                created_at=conv.created_at.isoformat() if isinstance(conv.created_at, datetime) else conv.created_at,
+                updated_at=conv.updated_at.isoformat() if isinstance(conv.updated_at, datetime) else conv.updated_at,
             )
             for conv in conversations
         ]
@@ -186,4 +189,189 @@ async def get_conversation_messages(
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve messages"
+        )
+
+
+# =============================================================================
+# Delete Conversation - DELETE /api/{user_id}/conversations/{conversation_id}
+# =============================================================================
+
+@router.delete("/{user_id}/conversations/{conversation_id}", status_code=204)
+async def delete_conversation(
+    user_id: str,
+    conversation_id: int,
+    token_user_id: str = Depends(verify_jwt_token),
+    session: Session = Depends(get_session),
+) -> None:
+    """
+    Delete a conversation and all its messages.
+
+    Messages are automatically deleted via cascade.
+
+    Args:
+        user_id: User ID from URL path
+        conversation_id: Conversation ID to delete
+    """
+    # Verify JWT and user access
+    verify_user_access(user_id, token_user_id)
+
+    try:
+        # Find conversation with user isolation
+        conversation = session.get(Conversation, conversation_id)
+
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Verify ownership
+        if conversation.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Delete conversation (messages cascade automatically)
+        session.delete(conversation)
+        session.commit()
+
+        logger.info(f"Deleted conversation {conversation_id} for user {user_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Error deleting conversation {conversation_id} for user {user_id}: {e}",
+            exc_info=True
+        )
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete conversation"
+        )
+
+
+# =============================================================================
+# Delete Message - DELETE /api/{user_id}/conversations/{conversation_id}/messages/{message_id}
+# =============================================================================
+
+@router.delete(
+    "/{user_id}/conversations/{conversation_id}/messages/{message_id}",
+    status_code=204
+)
+async def delete_message(
+    user_id: str,
+    conversation_id: int,
+    message_id: int,
+    token_user_id: str = Depends(verify_jwt_token),
+    session: Session = Depends(get_session),
+) -> None:
+    """
+    Delete a specific message from a conversation.
+
+    Args:
+        user_id: User ID from URL path
+        conversation_id: Conversation ID
+        message_id: Message ID to delete
+    """
+    # Verify JWT and user access
+    verify_user_access(user_id, token_user_id)
+
+    try:
+        # Find message with user isolation
+        message = session.get(Message, message_id)
+
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        # Verify message belongs to the user and conversation
+        if message.user_id != user_id or message.conversation_id != conversation_id:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        # Delete message
+        session.delete(message)
+        session.commit()
+
+        logger.info(
+            f"Deleted message {message_id} from conversation {conversation_id} for user {user_id}"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Error deleting message {message_id} for user {user_id}: {e}",
+            exc_info=True
+        )
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete message"
+        )
+
+
+# =============================================================================
+# Clear Conversation Messages - DELETE /api/{user_id}/conversations/{conversation_id}/messages
+# =============================================================================
+
+@router.delete(
+    "/{user_id}/conversations/{conversation_id}/messages",
+    response_model=MessageResponseDTO
+)
+async def clear_conversation_messages(
+    user_id: str,
+    conversation_id: int,
+    token_user_id: str = Depends(verify_jwt_token),
+    session: Session = Depends(get_session),
+) -> MessageResponseDTO:
+    """
+    Clear all messages from a conversation without deleting the conversation.
+
+    Args:
+        user_id: User ID from URL path
+        conversation_id: Conversation ID
+
+    Returns:
+        MessageResponseDTO with count of deleted messages
+    """
+    # Verify JWT and user access
+    verify_user_access(user_id, token_user_id)
+
+    try:
+        # Verify conversation exists and belongs to user
+        conversation = session.get(Conversation, conversation_id)
+
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        if conversation.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Count and delete messages
+        from sqlmodel import select
+        messages = list(session.exec(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.user_id == user_id)
+        ).all())
+
+        deleted_count = len(messages)
+
+        for msg in messages:
+            session.delete(msg)
+
+        session.commit()
+
+        logger.info(
+            f"Cleared {deleted_count} messages from conversation {conversation_id} for user {user_id}"
+        )
+
+        return MessageResponseDTO(message=f"Deleted {deleted_count} messages")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Error clearing messages from conversation {conversation_id} for user {user_id}: {e}",
+            exc_info=True
+        )
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to clear messages"
         )

@@ -35,7 +35,7 @@ A full-stack AI-powered task management application with event-driven microservi
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14, React 18, TypeScript, TailwindCSS |
+| Frontend | Next.js 14, React 18, TypeScript, TailwindCSS, Framer Motion |
 | Backend API | Python 3.11+, FastAPI, SQLModel, Pydantic |
 | Database | Neon PostgreSQL (serverless) |
 | AI | Cohere API (command-r-plus) with function calling |
@@ -58,17 +58,27 @@ A full-stack AI-powered task management application with event-driven microservi
 - 7 MCP tools: add_task, list_tasks, complete_task, delete_task, update_task, set_reminder, list_reminders
 - Conversation history with multi-turn context
 - 9-step stateless chat flow
+- Floating chat widget with minimize/reopen support
 
 ### Phase V - Advanced Features
-- **Priority levels** (low/medium/high) with filtering and sorting
-- **Due dates** with date range filtering
-- **Recurring tasks** (daily/weekly/monthly) with auto-creation on completion
+- **Priority levels** (low/medium/high) with color-coded badges, filtering and sorting
+- **Due dates** with date picker and date range filtering
+- **Recurring tasks** (daily/weekly/monthly) with auto-creation on completion via event-driven microservice
 - **Reminders** with scheduled notifications and auto-cancel on completion
-- **Tags** with CRUD endpoints and task-tag associations
-- **Search** across title and description with combined filters
-- **Event-driven architecture** with Kafka event streaming
+- **Tags** with CRUD endpoints, task-tag associations, color-coded badges, and tag input component
+- **Search** across title and description with real-time search bar
+- **Filter panel** with combined priority, due date, tag, and status filters
+- **Event-driven architecture** with Kafka event streaming (Redpanda)
 - **Microservices** for notification delivery and recurring task processing
 - **Idempotent event processing** to prevent duplicates
+- **Non-blocking Kafka consumers** with retry logic for graceful degradation
+
+### Phase V - Infrastructure
+- **Kubernetes deployments** for all services with health probes and resource limits
+- **Dapr sidecar injection** for pub/sub messaging on microservices
+- **Dual-listener Redpanda** configuration for host and Minikube access
+- **Helm charts** for templated Kubernetes deployments
+- **GitHub Actions CI/CD** with lint, test, build, and multi-environment deploy
 
 ## Project Structure
 
@@ -98,11 +108,25 @@ A full-stack AI-powered task management application with event-driven microservi
 │   │       └── publisher.py   # High-level event publishing
 │   └── migrations/            # SQL migration scripts
 ├── frontend/                   # Next.js frontend
+│   ├── app/(dashboard)/       # Dashboard pages
+│   ├── components/features/   # Feature components
+│   │   ├── task-card.tsx      # Task card with dropdown menu
+│   │   ├── task-form.tsx      # Create/edit form (tags, priority, due date, recurrence)
+│   │   ├── task-list.tsx      # Task list with animations
+│   │   ├── task-modal.tsx     # Create/edit task modal
+│   │   ├── filter-panel.tsx   # Combined filter UI (priority, date, tags, status)
+│   │   ├── search-bar.tsx     # Real-time search input
+│   │   ├── tag-badge.tsx      # Color-coded tag badge
+│   │   ├── tag-input.tsx      # Tag selection/creation input
+│   │   └── floating-chat/     # AI chat widget
+│   ├── hooks/                 # React hooks (use-tasks, etc.)
+│   ├── lib/                   # API client, validations
+│   └── types/                 # TypeScript type definitions
 ├── services/
 │   ├── notification/          # Notification microservice
 │   │   └── app/
 │   │       ├── main.py        # FastAPI app + /health
-│   │       ├── consumer.py    # Kafka consumer (reminder-events)
+│   │       ├── consumer.py    # Kafka consumer (reminder-events) with retry
 │   │       ├── scheduler.py   # APScheduler for reminder checks
 │   │       ├── notifier.py    # Email sender with retry logic
 │   │       ├── queries.py     # Pending reminder queries
@@ -110,16 +134,23 @@ A full-stack AI-powered task management application with event-driven microservi
 │   └── recurring/             # Recurring task microservice
 │       └── app/
 │           ├── main.py        # FastAPI app + /health
-│           ├── consumer.py    # Kafka consumer (task-events)
+│           ├── consumer.py    # Kafka consumer (task-events) with retry
 │           ├── calculator.py  # Next occurrence date calculator
 │           ├── task_creator.py# New task instance creation
 │           └── idempotency.py # Duplicate event prevention
+├── kubernetes/                 # Raw Kubernetes manifests
+│   ├── configmap.yaml         # Shared configuration (incl. Kafka brokers)
+│   ├── secret.yaml            # Secret references
+│   ├── notification-deployment.yaml  # Notification svc + Dapr sidecar
+│   ├── notification-service.yaml     # Notification ClusterIP service
+│   ├── recurring-deployment.yaml     # Recurring svc + Dapr sidecar
+│   └── recurring-service.yaml        # Recurring ClusterIP service
 ├── dapr/                       # Dapr component definitions
-│   ├── pubsub-kafka.yaml
-│   ├── pubsub-kafka-local.yaml
-│   ├── statestore.yaml
-│   ├── secrets-local.yaml
-│   ├── secrets-k8s.yaml
+│   ├── pubsub-kafka.yaml      # Kafka pub/sub (Minikube listener)
+│   ├── pubsub-kafka-local.yaml# Kafka pub/sub (local dev)
+│   ├── statestore.yaml        # PostgreSQL state store (scoped to backend)
+│   ├── secrets-local.yaml     # Local env file secrets
+│   ├── secrets-k8s.yaml       # Kubernetes secrets integration
 │   └── subscriptions/
 │       ├── task-events.yaml
 │       └── reminder-events.yaml
@@ -138,7 +169,7 @@ A full-stack AI-powered task management application with event-driven microservi
 │   ├── deploy-staging.yml     # Auto-deploy to staging
 │   └── deploy-prod.yml        # Manual production deploy
 ├── docker-compose.yml          # Redpanda local dev
-├── docker-compose.redpanda.yml # Extended Redpanda + console
+├── docker-compose.redpanda.yml # Redpanda with dual-listener + console
 └── specs/phase5/               # Design documents
     ├── tasks.md               # 125 implementation tasks
     ├── plan.md                # Architecture plan
@@ -181,18 +212,30 @@ npm run dev
 ### Kafka (Redpanda) Local Development
 
 ```bash
-docker-compose up -d
-# Redpanda available at localhost:19092
+docker compose -f docker-compose.redpanda.yml up -d
+
+# Redpanda listeners:
+#   Port 9092  - Host/local access (advertises localhost:9092)
+#   Port 19092 - Minikube access (advertises host.minikube.internal:19092)
+# Console UI at http://localhost:8080
 # Admin API at localhost:9644
 ```
 
-### Kubernetes Deployment
+### Kubernetes Deployment (Minikube)
 
 ```bash
 # Start Minikube
 minikube start
 
-# Deploy with Helm
+# Build images in Minikube's Docker daemon
+eval $(minikube docker-env)           # macOS/Linux
+# & minikube -p minikube docker-env --shell powershell | Invoke-Expression  # Windows
+
+# Apply raw manifests
+kubectl apply -f kubernetes/
+kubectl apply -f dapr/
+
+# Or deploy with Helm
 helm install todo-chatbot ./helm/todo-chatbot \
   --set secrets.databaseUrl=<your-db-url> \
   --set secrets.betterAuthSecret=<your-secret> \
@@ -211,10 +254,19 @@ helm install todo-chatbot ./helm/todo-chatbot \
 ### Tasks
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/{user_id}/tasks` | List tasks (supports filters) |
+| GET | `/api/{user_id}/tasks` | List tasks (supports search, filter, sort) |
 | POST | `/api/{user_id}/tasks` | Create task |
 | PATCH | `/api/{user_id}/tasks/{id}` | Update task |
 | DELETE | `/api/{user_id}/tasks/{id}` | Delete task |
+
+**Query parameters for GET /tasks:**
+- `search` - Search title and description
+- `priority` - Filter by priority (low/medium/high)
+- `is_completed` - Filter by completion status
+- `due_date_from` / `due_date_to` - Date range filter
+- `tag_ids` - Filter by tag IDs
+- `sort_by` - Sort field (created_at, due_date, priority)
+- `sort_order` - Sort direction (asc/desc)
 
 ### Chat
 | Method | Path | Description |
@@ -252,7 +304,7 @@ helm install todo-chatbot ./helm/todo-chatbot \
 | `BETTER_AUTH_SECRET` | JWT signing secret |
 | `COHERE_API_KEY` | Cohere AI API key |
 | `CORS_ORIGINS` | Allowed CORS origins |
-| `KAFKA_BROKERS` | Kafka broker address |
+| `KAFKA_BROKERS` | Kafka broker address(es), comma-separated |
 | `KAFKA_ENABLED` | Enable event publishing (true/false) |
 | `SMTP_HOST` | SMTP server for notifications |
 | `SMTP_PORT` | SMTP port (default: 587) |

@@ -4,9 +4,12 @@ import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { TaskStatsGrid } from '@/components/features/task-stats';
 import { TaskList } from '@/components/features/task-list';
+import { SearchBar } from '@/components/features/search-bar';
+import { FilterPanel, type FilterState } from '@/components/features/filter-panel';
 import {
   CreateTaskModal,
   EditTaskModal,
@@ -20,8 +23,10 @@ import {
   Calendar,
   CheckSquare,
   ChevronDown,
+  Flag,
+  CalendarClock,
 } from 'lucide-react';
-import type { Task, TaskFilter, TaskSort, CreateTaskRequest, UpdateTaskRequest } from '@/types';
+import type { Task, Tag, TaskFilter, TaskSort, CreateTaskRequest, UpdateTaskRequest } from '@/types';
 
 // =============================================================================
 // Types
@@ -43,6 +48,8 @@ const sortOptions: SortOption[] = [
   { value: 'created_at', label: 'Date Created', icon: Calendar },
   { value: 'title', label: 'Title', icon: ArrowUpDown },
   { value: 'completed', label: 'Status', icon: CheckSquare },
+  { value: 'priority', label: 'Priority', icon: Flag },
+  { value: 'due_date', label: 'Due Date', icon: CalendarClock },
 ];
 
 interface SortDropdownProps {
@@ -200,6 +207,30 @@ export default function DashboardPage() {
   const [sortBy, setSortBy] = React.useState<TaskSort>('created_at');
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc');
 
+  // Phase V: Search and advanced filters
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [advancedFilters, setAdvancedFilters] = React.useState<FilterState>({
+    priority: null,
+    tags: [],
+    status: 'all',
+  });
+  const [availableTags, setAvailableTags] = React.useState<Tag[]>([]);
+
+  // Fetch available tags when user is authenticated
+  React.useEffect(() => {
+    const fetchTags = async () => {
+      if (!user) return; // Wait for authentication
+      try {
+        const response = await api.getTags();
+        setAvailableTags(response.tags);
+      } catch (err) {
+        console.error('Failed to fetch tags:', err);
+        // Silently fail - tags are optional
+      }
+    };
+    fetchTags();
+  }, [user]);
+
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
@@ -208,16 +239,47 @@ export default function DashboardPage() {
 
   // Filter and sort tasks
   const processedTasks = React.useMemo(() => {
-    // First filter
-    let result = tasks.filter((task) => {
-      if (filter === 'pending') return !task.is_completed;
-      if (filter === 'completed') return task.is_completed;
+    let result = tasks;
+
+    // Apply search filter (title and description)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (task) =>
+          task.title.toLowerCase().includes(query) ||
+          (task.description && task.description.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply status filter (from tabs or advanced filter)
+    const statusFilter = advancedFilters.status !== 'all' ? advancedFilters.status : filter;
+    result = result.filter((task) => {
+      if (statusFilter === 'pending') return !task.is_completed;
+      if (statusFilter === 'completed') return task.is_completed;
       return true;
     });
+
+    // Apply priority filter
+    if (advancedFilters.priority) {
+      result = result.filter(
+        (task) => task.priority?.toLowerCase() === advancedFilters.priority
+      );
+    }
+
+    // Apply tags filter (task must have ALL selected tags)
+    if (advancedFilters.tags.length > 0) {
+      result = result.filter((task) => {
+        const taskTagNames = task.tags?.map((t) => t.name) || [];
+        return advancedFilters.tags.every((tagName) => taskTagNames.includes(tagName));
+      });
+    }
 
     // Then sort
     result = [...result].sort((a, b) => {
       let comparison = 0;
+
+      // Priority order map (high = 3, medium = 2, low = 1, null/undefined = 0)
+      const priorityOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
       switch (sortBy) {
         case 'title':
@@ -225,6 +287,18 @@ export default function DashboardPage() {
           break;
         case 'completed':
           comparison = Number(a.is_completed) - Number(b.is_completed);
+          break;
+        case 'priority':
+          const aPriority = priorityOrder[a.priority?.toLowerCase() || ''] || 0;
+          const bPriority = priorityOrder[b.priority?.toLowerCase() || ''] || 0;
+          comparison = aPriority - bPriority;
+          break;
+        case 'due_date':
+          // Tasks with no due date go to the end
+          if (!a.due_date && !b.due_date) comparison = 0;
+          else if (!a.due_date) comparison = 1;
+          else if (!b.due_date) comparison = -1;
+          else comparison = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
           break;
         case 'created_at':
         default:
@@ -236,7 +310,7 @@ export default function DashboardPage() {
     });
 
     return result;
-  }, [tasks, filter, sortBy, sortDirection]);
+  }, [tasks, filter, sortBy, sortDirection, searchQuery, advancedFilters]);
 
   // Handlers
   const handleToggle = async (taskId: number) => {
@@ -263,8 +337,11 @@ export default function DashboardPage() {
   const handleCreateSubmit = async (data: CreateTaskRequest) => {
     const result = await createTask(data);
     if (result) {
-      // Task is already added to state via optimistic update in createTask
-      // No refetch needed - it would cause a loading flash and potentially lose the optimistic update
+      // Refresh tags if new tags were created
+      if (data.tags?.length) {
+        const response = await api.getTags();
+        setAvailableTags(response.tags);
+      }
       setIsCreateModalOpen(false);
     }
   };
@@ -272,7 +349,11 @@ export default function DashboardPage() {
   const handleEditSubmit = async (taskId: number, data: UpdateTaskRequest) => {
     const result = await updateTask(taskId, data);
     if (result) {
-      // Task is already updated in state via optimistic update
+      // Refresh tags if tags were modified
+      if (data.tags !== undefined) {
+        const response = await api.getTags();
+        setAvailableTags(response.tags);
+      }
       setIsEditModalOpen(false);
       setSelectedTask(null);
     }
@@ -323,12 +404,25 @@ export default function DashboardPage() {
 
         {/* Task List Section */}
         <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          {/* Search Bar */}
+          <div className="mb-4">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search tasks by title or description..."
+            />
+          </div>
+
+          {/* Filters Row */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             {/* Filter Tabs */}
             <FilterTabs
               filter={filter}
-              onFilterChange={setFilter}
+              onFilterChange={(f) => {
+                setFilter(f);
+                // Sync with advanced filters
+                setAdvancedFilters((prev) => ({ ...prev, status: 'all' }));
+              }}
               counts={{
                 all: stats.total,
                 pending: stats.pending,
@@ -337,7 +431,13 @@ export default function DashboardPage() {
             />
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <FilterPanel
+                filters={advancedFilters}
+                onChange={setAdvancedFilters}
+                availableTags={availableTags}
+              />
+
               <SortDropdown
                 sortBy={sortBy}
                 sortDirection={sortDirection}
@@ -354,6 +454,14 @@ export default function DashboardPage() {
               </Button>
             </div>
           </div>
+
+          {/* Active filters summary */}
+          {(searchQuery || advancedFilters.priority || advancedFilters.tags.length > 0) && (
+            <div className="mb-4 text-sm text-muted-foreground">
+              Showing {processedTasks.length} of {tasks.length} tasks
+              {searchQuery && <span> matching &quot;{searchQuery}&quot;</span>}
+            </div>
+          )}
 
           {/* Task List */}
           <TaskList
@@ -385,6 +493,7 @@ export default function DashboardPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateSubmit}
+        availableTags={availableTags}
       />
 
       <EditTaskModal
@@ -395,6 +504,7 @@ export default function DashboardPage() {
         }}
         task={selectedTask}
         onSubmit={handleEditSubmit}
+        availableTags={availableTags}
       />
 
       <DeleteTaskModal

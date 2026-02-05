@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, X, ChevronDown, Plus, RefreshCw, Minus } from 'lucide-react';
+import { MessageSquare, X, ChevronDown, Plus, RefreshCw, Minus, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/components/providers/chat-provider';
 import { useAuth } from '@/hooks/use-auth';
@@ -13,7 +13,28 @@ import { ChatInput } from '@/components/features/chat/chat-input';
 // Floating Chat Button (FAB)
 // =============================================================================
 
-function FloatingChatButton({ onClick, isOpen }: { onClick: () => void; isOpen: boolean }) {
+function FloatingChatButton({
+  onClick,
+  isOpen,
+  isMinimized
+}: {
+  onClick: () => void;
+  isOpen: boolean;
+  isMinimized: boolean;
+}) {
+  // Determine button state: closed, minimized, or open
+  const getIconAndLabel = () => {
+    if (!isOpen) {
+      return { icon: 'chat', label: 'Open chat' };
+    }
+    if (isMinimized) {
+      return { icon: 'restore', label: 'Restore chat' };
+    }
+    return { icon: 'close', label: 'Close chat' };
+  };
+
+  const { icon, label } = getIconAndLabel();
+
   return (
     <motion.button
       onClick={onClick}
@@ -28,11 +49,11 @@ function FloatingChatButton({ onClick, isOpen }: { onClick: () => void; isOpen: 
       )}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
-      aria-label={isOpen ? 'Close chat' : 'Open chat'}
+      aria-label={label}
       aria-expanded={isOpen}
     >
       <AnimatePresence mode="wait">
-        {isOpen ? (
+        {icon === 'close' && (
           <motion.div
             key="close"
             initial={{ rotate: -90, opacity: 0 }}
@@ -42,7 +63,19 @@ function FloatingChatButton({ onClick, isOpen }: { onClick: () => void; isOpen: 
           >
             <X className="w-6 h-6" />
           </motion.div>
-        ) : (
+        )}
+        {icon === 'restore' && (
+          <motion.div
+            key="restore"
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <Maximize2 className="w-6 h-6" />
+          </motion.div>
+        )}
+        {icon === 'chat' && (
           <motion.div
             key="chat"
             initial={{ rotate: 90, opacity: 0 }}
@@ -70,16 +103,18 @@ function ChatWidget() {
     isLoading,
     error,
     isOpen,
+    isMinimized,
     sendMessage,
     loadConversation,
     startNewConversation,
     loadConversations,
     closeChat,
+    minimizeChat,
+    restoreChat,
     clearError,
   } = useChat();
 
   const [showConversations, setShowConversations] = React.useState(false);
-  const [isMinimized, setIsMinimized] = React.useState(false);
 
   // Close conversations dropdown when clicking outside
   const dropdownRef = React.useRef<HTMLDivElement>(null);
@@ -209,9 +244,9 @@ function ChatWidget() {
                 </AnimatePresence>
               </div>
 
-              {/* Minimize button */}
+              {/* Minimize/Restore button */}
               <button
-                onClick={() => setIsMinimized(!isMinimized)}
+                onClick={isMinimized ? restoreChat : minimizeChat}
                 className={cn(
                   'p-2 rounded-lg',
                   'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300',
@@ -221,7 +256,7 @@ function ChatWidget() {
                 aria-label={isMinimized ? 'Expand' : 'Minimize'}
                 title={isMinimized ? 'Expand' : 'Minimize'}
               >
-                <Minus className="w-4 h-4" />
+                {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
               </button>
 
               {/* Close button */}
@@ -287,7 +322,7 @@ function ChatWidget() {
 
 export function FloatingChat() {
   const { isAuthenticated } = useAuth();
-  const { isOpen, toggleChat } = useChat();
+  const { isOpen, isMinimized, toggleChat } = useChat();
 
   // Only show floating chat for authenticated users
   if (!isAuthenticated) {
@@ -297,7 +332,7 @@ export function FloatingChat() {
   return (
     <>
       <ChatWidget />
-      <FloatingChatButton onClick={toggleChat} isOpen={isOpen} />
+      <FloatingChatButton onClick={toggleChat} isOpen={isOpen} isMinimized={isMinimized} />
     </>
   );
 }

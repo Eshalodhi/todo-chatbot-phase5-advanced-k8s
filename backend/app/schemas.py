@@ -1,6 +1,6 @@
 """Pydantic schemas (DTOs) for request/response validation."""
 
-from typing import Optional
+from typing import Literal, Optional, List
 from sqlmodel import SQLModel, Field
 
 
@@ -91,6 +91,11 @@ class CreateTaskDTO(SQLModel):
 
     title: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
+    priority: Optional[Literal["low", "medium", "high"]] = None
+    due_date: Optional[str] = None  # ISO 8601 format
+    recurrence_pattern: Optional[Literal["daily", "weekly", "monthly"]] = None
+    recurrence_end_date: Optional[str] = None  # ISO 8601 format
+    tags: Optional[List[str]] = None  # Tag names to assign
 
 
 class UpdateTaskDTO(SQLModel):
@@ -99,6 +104,43 @@ class UpdateTaskDTO(SQLModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
     is_completed: Optional[bool] = None
+    priority: Optional[Literal["low", "medium", "high"]] = None
+    due_date: Optional[str] = None  # ISO 8601 format
+    recurrence_pattern: Optional[Literal["daily", "weekly", "monthly"]] = None
+    recurrence_end_date: Optional[str] = None  # ISO 8601 format
+    tags: Optional[List[str]] = None  # Tag names to assign (replaces existing)
+
+
+class TaskTagResponseDTO(SQLModel):
+    """Tag data embedded in task response."""
+
+    id: int
+    name: str
+    color: Optional[str] = None
+
+
+class TaskResponseDTO(SQLModel):
+    """Response body for a task with all Phase V fields."""
+
+    id: int
+    user_id: str
+    title: str
+    description: Optional[str] = None
+    is_completed: bool
+    priority: str
+    due_date: Optional[str] = None  # ISO 8601 format
+    recurrence_pattern: Optional[str] = None
+    recurrence_end_date: Optional[str] = None  # ISO 8601 format
+    tags: List[TaskTagResponseDTO] = []  # Tags assigned to this task
+    created_at: str  # ISO 8601 format
+    updated_at: str  # ISO 8601 format
+
+
+class TaskListResponseDTO(SQLModel):
+    """Response body for listing tasks with pagination info."""
+
+    tasks: List[TaskResponseDTO]
+    count: int
 
 
 # =============================================================================

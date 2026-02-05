@@ -6,12 +6,12 @@ create, remember, or note something they need to do.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
-from app.models import Task
+from app.models import Task, Tag, TaskTag
 from app.models import Priority, RecurrencePattern
 from app.services.chat.tools.base import ToolResult
 from app.config import KAFKA_ENABLED
@@ -34,6 +34,7 @@ async def handle_add_task(
     due_date: Optional[str] = None,
     recurrence_pattern: Optional[str] = None,
     recurrence_end_date: Optional[str] = None,
+    tags: Optional[str] = None,
     **kwargs
 ) -> ToolResult:
     """
@@ -48,6 +49,7 @@ async def handle_add_task(
         due_date: Optional due date in ISO format
         recurrence_pattern: Optional recurrence pattern (daily/weekly/monthly)
         recurrence_end_date: Optional end date for recurrence in ISO format
+        tags: Optional comma-separated tag names to assign
 
     Returns:
         ToolResult with created task data
@@ -74,7 +76,7 @@ async def handle_add_task(
         )
 
     # Validate and parse priority
-    task_priority = Priority.MEDIUM  # default
+    task_priority = "medium"  # default
     if priority:
         priority_lower = priority.lower().strip()
         if priority_lower not in VALID_PRIORITIES:
@@ -82,7 +84,7 @@ async def handle_add_task(
                 success=False,
                 message=f"Invalid priority. Use one of: {', '.join(VALID_PRIORITIES)}"
             )
-        task_priority = Priority(priority_lower)
+        task_priority = priority_lower
 
     # Validate and parse due_date
     task_due_date: Optional[datetime] = None
@@ -133,7 +135,34 @@ async def handle_add_task(
         session.commit()
         session.refresh(task)
 
-        logger.info(f"Created task {task.id} for user {user_id}: {title} (priority={task_priority.value})")
+        # Handle tags if provided
+        assigned_tags: List[str] = []
+        if tags:
+            tag_names = [t.strip() for t in tags.split(",") if t.strip()]
+            for tag_name in tag_names:
+                # Find or create tag
+                tag = session.exec(
+                    select(Tag)
+                    .where(Tag.user_id == user_id)
+                    .where(Tag.name == tag_name)
+                ).first()
+
+                if not tag:
+                    # Create new tag
+                    tag = Tag(user_id=user_id, name=tag_name)
+                    session.add(tag)
+                    session.commit()
+                    session.refresh(tag)
+
+                # Create task-tag association
+                task_tag = TaskTag(task_id=task.id, tag_id=tag.id)
+                session.add(task_tag)
+                assigned_tags.append(tag_name)
+
+            if assigned_tags:
+                session.commit()
+
+        logger.info(f"Created task {task.id} for user {user_id}: {title} (priority={task_priority}, tags={assigned_tags})")
 
         # Publish task.created event if Kafka is enabled
         if KAFKA_ENABLED:
@@ -144,7 +173,7 @@ async def handle_add_task(
                     task_id=task.id,
                     title=task.title,
                     description=task.description,
-                    priority=task_priority.value,
+                    priority=task_priority,
                     due_date=task_due_date,
                 )
             except Exception as e:
@@ -155,7 +184,7 @@ async def handle_add_task(
             "task_id": task.id,
             "status": "created",
             "title": task.title,
-            "priority": task_priority.value
+            "priority": task_priority
         }
         if task_due_date:
             response_data["due_date"] = task_due_date.isoformat()
@@ -163,10 +192,14 @@ async def handle_add_task(
             response_data["recurrence_pattern"] = task_recurrence.value
         if task_recurrence_end:
             response_data["recurrence_end_date"] = task_recurrence_end.isoformat()
+        if assigned_tags:
+            response_data["tags"] = assigned_tags
 
-        message_parts = [f"Task '{title}' created successfully with {task_priority.value} priority"]
+        message_parts = [f"Task '{title}' created successfully with {task_priority} priority"]
         if task_recurrence:
             message_parts.append(f"recurring {task_recurrence.value}")
+        if assigned_tags:
+            message_parts.append(f"tagged with: {', '.join(assigned_tags)}")
 
         return ToolResult(
             success=True,

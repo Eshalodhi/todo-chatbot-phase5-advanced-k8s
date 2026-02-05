@@ -13,13 +13,14 @@ services:
       - --memory 1G
       - --overprovisioned
       - --node-id 0
-      - --kafka-addr PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr PLAINTEXT://localhost:9092
+      - --kafka-addr internal://0.0.0.0:9092,minikube://0.0.0.0:19092
+      - --advertise-kafka-addr internal://localhost:9092,minikube://host.minikube.internal:19092
       - --pandaproxy-addr PLAINTEXT://0.0.0.0:8082
       - --advertise-pandaproxy-addr PLAINTEXT://localhost:8082
       - --schema-registry-addr PLAINTEXT://0.0.0.0:8081
     ports:
-      - "9092:9092"    # Kafka protocol
+      - "9092:9092"    # Kafka protocol (host/local access)
+      - "19092:19092"  # Kafka protocol (Minikube access)
       - "8081:8081"    # Schema registry
       - "8082:8082"    # REST proxy / Admin API
       - "9644:9644"    # Admin API

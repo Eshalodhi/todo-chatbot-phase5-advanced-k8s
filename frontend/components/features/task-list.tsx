@@ -76,7 +76,7 @@ export function TaskList({
 
   // Render task list with animations
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 overflow-visible">
       <AnimatePresence mode="popLayout">
         {tasks.map((task, index) => (
           <motion.div
@@ -90,6 +90,7 @@ export function TaskList({
               delay: index < 10 ? index * 0.05 : 0, // Stagger only first 10 on initial load
             }}
             layout
+            className="relative overflow-visible"
           >
             <TaskCard
               task={task}

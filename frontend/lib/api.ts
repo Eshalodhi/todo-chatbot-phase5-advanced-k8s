@@ -1,8 +1,12 @@
 import type {
   Task,
+  Tag,
   CreateTaskRequest,
   UpdateTaskRequest,
   TaskListResponse,
+  TaskQueryParams,
+  TagListResponse,
+  CreateTagRequest,
   ErrorResponse,
   ChatRequest,
   ChatResponse,
@@ -107,14 +111,29 @@ class ApiClient {
   // ==========================================================================
 
   /**
-   * Get all tasks for the current user
+   * Get all tasks for the current user with optional filtering/sorting
    */
-  async getTasks(): Promise<TaskListResponse> {
+  async getTasks(params?: TaskQueryParams): Promise<TaskListResponse> {
     const userId = getUserId();
     if (!userId) throw new ApiError(401, 'Not authenticated');
-    // Backend returns Task[] directly, wrap it in TaskListResponse
-    const tasks = await this.request<Task[]>(`/api/${userId}/tasks`);
-    return { tasks };
+
+    // Build query string from params
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.priority) searchParams.append('priority', params.priority);
+    if (params?.tags?.length) {
+      params.tags.forEach(tag => searchParams.append('tags', tag));
+    }
+    if (params?.is_completed !== undefined) {
+      searchParams.append('is_completed', String(params.is_completed));
+    }
+    if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
+    if (params?.order) searchParams.append('order', params.order);
+
+    const queryString = searchParams.toString();
+    const url = `/api/${userId}/tasks${queryString ? `?${queryString}` : ''}`;
+
+    return this.request<TaskListResponse>(url);
   }
 
   /**
@@ -169,6 +188,65 @@ class ApiClient {
     if (!userId) throw new ApiError(401, 'Not authenticated');
     return this.request<Task>(`/api/${userId}/tasks/${taskId}/complete`, {
       method: 'PATCH',
+    });
+  }
+
+  // ==========================================================================
+  // Tag Endpoints (Phase V)
+  // ==========================================================================
+
+  /**
+   * Get all tags for the current user
+   */
+  async getTags(): Promise<TagListResponse> {
+    const userId = getUserId();
+    if (!userId) throw new ApiError(401, 'Not authenticated');
+    return this.request<TagListResponse>(`/api/${userId}/tags`);
+  }
+
+  /**
+   * Create a new tag
+   */
+  async createTag(data: CreateTagRequest): Promise<Tag> {
+    const userId = getUserId();
+    if (!userId) throw new ApiError(401, 'Not authenticated');
+    return this.request<Tag>(`/api/${userId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Delete a tag
+   */
+  async deleteTag(tagId: number): Promise<void> {
+    const userId = getUserId();
+    if (!userId) throw new ApiError(401, 'Not authenticated');
+    await this.request<void>(`/api/${userId}/tags/${tagId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Add a tag to a task
+   */
+  async addTagToTask(taskId: number, tagId: number): Promise<void> {
+    const userId = getUserId();
+    if (!userId) throw new ApiError(401, 'Not authenticated');
+    await this.request<void>(`/api/${userId}/tasks/${taskId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ tag_id: tagId }),
+    });
+  }
+
+  /**
+   * Remove a tag from a task
+   */
+  async removeTagFromTask(taskId: number, tagId: number): Promise<void> {
+    const userId = getUserId();
+    if (!userId) throw new ApiError(401, 'Not authenticated');
+    await this.request<void>(`/api/${userId}/tasks/${taskId}/tags/${tagId}`, {
+      method: 'DELETE',
     });
   }
 

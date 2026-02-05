@@ -16,6 +16,7 @@ interface ChatContextValue {
   isLoading: boolean;
   error: string | null;
   isOpen: boolean;
+  isMinimized: boolean;
 
   // Actions
   sendMessage: (content: string) => Promise<void>;
@@ -25,6 +26,8 @@ interface ChatContextValue {
   toggleChat: () => void;
   openChat: () => void;
   closeChat: () => void;
+  minimizeChat: () => void;
+  restoreChat: () => void;
   clearError: () => void;
 
   // Task refresh registration
@@ -49,6 +52,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isMinimized, setIsMinimized] = React.useState(false);
 
   // Callback ref to avoid stale closures in refreshTasks
   const refreshTasksRef = React.useRef<(() => Promise<void>) | null>(null);
@@ -157,16 +161,47 @@ export function ChatProvider({ children }: ChatProviderProps) {
     }
   }, [conversationId, loadConversations]);
 
+  // Use ref to track minimized state for toggle callback
+  const isMinimizedRef = React.useRef(isMinimized);
+  React.useEffect(() => {
+    isMinimizedRef.current = isMinimized;
+  }, [isMinimized]);
+
   const toggleChat = React.useCallback(() => {
-    setIsOpen((prev) => !prev);
+    if (isMinimizedRef.current) {
+      // If minimized, restore instead of closing
+      setIsMinimized(false);
+    } else {
+      // Toggle open/close
+      setIsOpen(prev => {
+        if (prev) {
+          // Currently open, close it
+          return false;
+        } else {
+          // Currently closed, open it
+          setIsMinimized(false);
+          return true;
+        }
+      });
+    }
   }, []);
 
   const openChat = React.useCallback(() => {
     setIsOpen(true);
+    setIsMinimized(false);
   }, []);
 
   const closeChat = React.useCallback(() => {
     setIsOpen(false);
+    setIsMinimized(false);
+  }, []);
+
+  const minimizeChat = React.useCallback(() => {
+    setIsMinimized(true);
+  }, []);
+
+  const restoreChat = React.useCallback(() => {
+    setIsMinimized(false);
   }, []);
 
   const clearError = React.useCallback(() => {
@@ -185,6 +220,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       isLoading,
       error,
       isOpen,
+      isMinimized,
       sendMessage,
       loadConversation,
       startNewConversation,
@@ -192,6 +228,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
       toggleChat,
       openChat,
       closeChat,
+      minimizeChat,
+      restoreChat,
       clearError,
       registerTaskRefresh,
     }),
@@ -202,6 +240,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       isLoading,
       error,
       isOpen,
+      isMinimized,
       sendMessage,
       loadConversation,
       startNewConversation,
@@ -209,6 +248,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
       toggleChat,
       openChat,
       closeChat,
+      minimizeChat,
+      restoreChat,
       clearError,
       registerTaskRefresh,
     ]

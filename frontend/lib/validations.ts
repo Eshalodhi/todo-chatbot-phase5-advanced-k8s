@@ -17,6 +17,18 @@ export const createTaskSchema = z.object({
     .max(1000, 'Description must be under 1000 characters')
     .optional()
     .or(z.literal('')),
+  priority: z
+    .enum(['low', 'medium', 'high'])
+    .optional()
+    .or(z.literal('')),
+  due_date: z
+    .string()
+    .optional()
+    .or(z.literal('')),
+  recurrence_pattern: z
+    .enum(['daily', 'weekly', 'monthly'])
+    .optional()
+    .or(z.literal('')),
 });
 
 /**

@@ -23,8 +23,8 @@ _producer: Optional[AIOKafkaProducer] = None
 class KafkaProducerConfig:
     """Configuration for Kafka producer."""
 
-    # Broker addresses (comma-separated)
-    BOOTSTRAP_SERVERS: str = KAFKA_BROKERS or "localhost:9092"
+    # Broker addresses (comma-separated string or list)
+    BOOTSTRAP_SERVERS: list[str] = (KAFKA_BROKERS or "localhost:9092").split(",")
 
     # Producer settings
     ACKS: str = "all"  # Wait for all replicas

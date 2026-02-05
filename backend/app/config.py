@@ -7,7 +7,7 @@ load_dotenv()
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 BETTER_AUTH_SECRET: str = os.getenv("BETTER_AUTH_SECRET", "")
-CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
 # OAuth Configuration

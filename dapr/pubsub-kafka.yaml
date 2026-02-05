@@ -2,13 +2,13 @@ apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
   name: pubsub-kafka
-  namespace: todo-prod
+  namespace: default
 spec:
   type: pubsub.kafka
   version: v1
   metadata:
     - name: brokers
-      value: "redpanda:9092"
+      value: "host.minikube.internal:19092"
     - name: authRequired
       value: "false"
     - name: consumerGroup
