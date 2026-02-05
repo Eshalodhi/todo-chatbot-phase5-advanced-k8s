@@ -132,7 +132,7 @@ async def handle_complete_task(
             select(Reminder)
             .where(Reminder.task_id == task.id)
             .where(Reminder.user_id == user_id)
-            .where(Reminder.sent == False)
+            .where(Reminder.sent.is_(False))
         ).all())
 
         for reminder in pending_reminders:

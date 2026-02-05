@@ -6,7 +6,6 @@ Per specs/phase5/contracts/task-events.json
 
 from datetime import datetime
 from typing import Any, Optional
-from pydantic import BaseModel
 
 from app.events.schemas import EventEnvelope, BasePayload
 

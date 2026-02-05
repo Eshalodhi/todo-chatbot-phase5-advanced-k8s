@@ -6,7 +6,6 @@ Per specs/phase5/contracts/reminder-events.json
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
 
 from app.events.schemas import EventEnvelope, BasePayload
 

@@ -7,7 +7,7 @@ tool calling support and retry logic for transient errors.
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import cohere
 from cohere.core import ApiError

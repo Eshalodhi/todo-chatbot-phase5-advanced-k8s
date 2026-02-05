@@ -45,7 +45,7 @@ async def handle_list_reminders(
 
         # Filter out sent reminders by default
         if not include_sent:
-            query = query.where(Reminder.sent == False)
+            query = query.where(Reminder.sent.is_(False))
 
         # Order by remind_at (soonest first)
         query = query.order_by(Reminder.remind_at.asc())

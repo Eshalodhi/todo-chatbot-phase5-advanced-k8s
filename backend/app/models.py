@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List, Any
+from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship, Column
 from sqlalchemy import String, Text, JSON, UniqueConstraint
 

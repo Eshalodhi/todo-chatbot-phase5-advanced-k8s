@@ -5,7 +5,7 @@ Per specs/phase5/contracts/task-events.json and reminder-events.json
 """
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 from pydantic import BaseModel, Field
 

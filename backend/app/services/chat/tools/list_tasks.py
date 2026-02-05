@@ -115,9 +115,9 @@ async def handle_list_tasks(
 
         # Apply status filter
         if status == "pending":
-            query = query.where(Task.is_completed == False)
+            query = query.where(Task.is_completed.is_(False))
         elif status == "completed":
-            query = query.where(Task.is_completed == True)
+            query = query.where(Task.is_completed.is_(True))
 
         # Apply priority filter
         if priority:
@@ -125,9 +125,9 @@ async def handle_list_tasks(
 
         # Apply due date filters
         if due_before_dt:
-            query = query.where(Task.due_date != None).where(Task.due_date <= due_before_dt)
+            query = query.where(Task.due_date.is_not(None)).where(Task.due_date <= due_before_dt)
         if due_after_dt:
-            query = query.where(Task.due_date != None).where(Task.due_date >= due_after_dt)
+            query = query.where(Task.due_date.is_not(None)).where(Task.due_date >= due_after_dt)
 
         # Apply text search filter
         if search:

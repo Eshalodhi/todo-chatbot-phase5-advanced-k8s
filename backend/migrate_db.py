@@ -29,7 +29,7 @@ def migrate():
             except Exception as e:
                 error_str = str(e).lower()
                 if "already exists" in error_str or "duplicate" in error_str:
-                    print(f"  SKIP: Already applied")
+                    print("  SKIP: Already applied")
                 else:
                     print(f"  ERROR: {e}")
 

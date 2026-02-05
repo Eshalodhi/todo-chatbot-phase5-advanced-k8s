@@ -32,8 +32,13 @@ class KafkaProducerConfig:
     RETRY_BACKOFF_MS: int = 1000
 
     # Serialization
-    VALUE_SERIALIZER = lambda v: json.dumps(v).encode("utf-8")
-    KEY_SERIALIZER = lambda k: k.encode("utf-8") if k else None
+    @staticmethod
+    def VALUE_SERIALIZER(v):
+        return json.dumps(v).encode("utf-8")
+
+    @staticmethod
+    def KEY_SERIALIZER(k):
+        return k.encode("utf-8") if k else None
 
 
 async def create_producer() -> AIOKafkaProducer:

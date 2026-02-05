@@ -8,7 +8,6 @@ This service orchestrates the chat functionality, handling:
 - Tool execution
 """
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Any
@@ -20,7 +19,6 @@ from app.models import Conversation, Message
 from app.schemas import ChatResponseDTO, ToolCallResultDTO
 from app.services.chat.cohere_client import CohereClient
 from app.services.chat.tools.executor import ToolExecutor
-from app.services.chat.tools.base import ToolResult
 
 logger = logging.getLogger(__name__)
 
